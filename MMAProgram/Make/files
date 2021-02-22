@@ -1,3 +1,0 @@
-MMAProgram.C
-
-EXE = $(FOAM_USER_APPBIN)/MMAProgram
