@@ -1,0 +1,38 @@
+#!/bin/bash
+
+source /home/lj980610/discreteadjointopenfoam_adwrapper/etc/bashrc
+
+rm -f 0
+cp -r 0.org 0
+potentialFoam -writePhi | tee potentialFoam.log
+
+foamDictionary -entry startTime -set 0   system/controlDict
+foamDictionary -entry endTime   -set 200 system/controlDict
+foamDictionary -entry writeInterval   -set 50 system/controlDict
+
+decomposePar
+
+mpirun -np 8 simpleFoam -parallel | tee simpleFoam.log
+
+reconstructPar
+rm -r pro*
+
+foamDictionary -entry startTime -set 200 system/controlDict
+foamDictionary -entry endTime   -set 400 system/controlDict
+foamDictionary -entry writeInterval -set 100 system/controlDict
+
+simpleMMACheckpointer | tee simpleMMACheckpointer.log
+
+foamDictionary -entry startTime -set 400 system/controlDict
+foamDictionary -entry endTime   -set 2500 system/controlDict
+foamDictionary -entry writeInterval -set 100 system/controlDict
+
+decomposePar -latestTime
+
+mpirun -np 8 MMAProgram -parallel | tee MMAProgram.log
+
+reconstructPar
+
+touch foam.foam
+
+#------------------------------------------------------------------------------
