@@ -115,10 +115,6 @@ private:
     CheckInterface check;
     CheckDict checkDict;
     CheckDatabase checkDB;
-    
-
-public:
-    scalar oldEndTime;
 
 public:
     MMAProgram
@@ -259,16 +255,18 @@ public:
 	    label NN = designSpaceCells.size();
 	    Foam::reduce(NN,sumOp<label>());
 	    
-	    label maxPiggyLoop = mesh.solutionDict().subDict("SIMPLE").lookupOrDefault<label>("maxPiggyLoop",100);
-	    scalar optEpsilon = mesh.solutionDict().subDict("SIMPLE").lookupOrDefault<scalar>("optTolerance",5e-2);
+	    //label maxPiggyLoop = mesh.solutionDict().subDict("SIMPLE").lookupOrDefault<label>("maxPiggyLoop",100);
+	    //scalar optEpsilon = mesh.solutionDict().subDict("SIMPLE").lookupOrDefault<scalar>("optTolerance",5e-2);
 
 	    scalar dSensSum = std::numeric_limits<double>::max();
-	    while ((dSensSum > optEpsilon || !runTime.writeTime() )&& simple.loop())
+	    
+	    int optStep = 0;
+	    while (optStep < 200 && simple.loop())
 	    {
 		    AD::switchTapeToActive();
 		    AD::position_t reset_to = AD::getTapePosition();
 
-		    for(int optStep = 0; optStep < maxPiggyLoop; optStep++){
+		    //for(int optStep = 0; optStep < maxPiggyLoop; optStep++){
 		    	    checkDB.registerAdjoints(); // store tape indices
 
 			    Info<< "Time = " << runTime.timeName() << nl << endl;
@@ -295,7 +293,7 @@ public:
 			       AD::switchTapeToActive();
 			    }
 
-		    }
+		    //}
 		    
 		    J = CostFunction(mesh).eval();
 		    checkDB.registerAsOutput();
@@ -323,7 +321,8 @@ public:
 		    Foam::reduce(sensSum,sumOp<scalar>());
 		    Foam::reduce(norm2,sumOp<scalar>());
 		    dSensSum = mag(sensSum - oldSensSum)/NN;
-		    Info << "piggy: " << runTime.timeName() << " " << sensSum << " " << dSensSum << " " << norm2 << " " << J << endl;
+		    optStep++;
+		    Info << "piggy: " << optStep << " " << runTime.timeName() << " " << sensSum << " " << dSensSum << " " << norm2 << " " << J << endl;
 		    
 		    //Info << "piggy: " << optStep << " " << runTime.timeName() << " " << norm2 << " " << J << endl;
 		    oldSensSum = sensSum;
@@ -347,7 +346,7 @@ public:
     	
 	start();
 	runLoop();
-	initialGuess();
+	//initialGuess();
 	GCMMASolver gcmma(mesh,designSpaceCells);
 	
 	label maxLoop = mesh.solutionDict().subDict("SIMPLE").lookupOrDefault<label>("maxLoop",15);
@@ -549,3 +548,4 @@ int main(int argc, char *argv[])
 
 
 // ************************************************************************* //
+
