@@ -106,11 +106,12 @@ private:
     // member variables
 
     scalar penalty, volumeConstraint;
-    label n, nOptSteps;
+    label nOptSteps;
+    scalar n;
     //bool frozenTurbulence;
     List<label> designSpaceCells;
     List<label> solidSpaceCells;
-    dimensionedScalar alpha_s, alpha_f;
+    scalar alpha_s, alpha_f;
     
     CheckInterface check;
     CheckDict checkDict;
@@ -158,8 +159,8 @@ public:
         pRefValue(pRefValue),
         cumulativeContErr(cumulativeContErr),
         eta_old(eta_old),
-        alpha_s(" ",dimless/dimTime, 0.0),
-        alpha_f(" ",dimless/dimTime, 0.0),
+        //alpha_s(" ",dimless/dimTime, 0.0),
+        //alpha_f(" ",dimless/dimTime, 0.0),
         check(runTime),
     	checkDict(runTime),
     	checkDB(runTime, checkDict)
@@ -183,7 +184,7 @@ public:
 
 		// --- Pressure-velocity SIMPLE corrector
 		{
-		    alpha=alpha_s+(alpha_f-alpha_s)*eta*(1.0+penalty)/(eta + penalty);
+		    #include "Alpha.H"
 		    #include "UEqn.H"
 		    #include "pEqn.H"
 		}
@@ -225,7 +226,7 @@ public:
 	scalar val;
 	forAll(designSpaceCells,i){
 	    const label j = designSpaceCells[i];
-	    val += eta[j];
+	    val += eta[j] * mesh.V()[j];
 	}
 	Foam::reduce(val,sumOp<scalar>());
 	val = (val/n) - volumeConstraint;
@@ -255,13 +256,13 @@ public:
 	    label NN = designSpaceCells.size();
 	    Foam::reduce(NN,sumOp<label>());
 	    
-	    //label maxPiggyLoop = mesh.solutionDict().subDict("SIMPLE").lookupOrDefault<label>("maxPiggyLoop",100);
-	    //scalar optEpsilon = mesh.solutionDict().subDict("SIMPLE").lookupOrDefault<scalar>("optTolerance",5e-2);
+	    label maxPiggyLoop = mesh.solutionDict().subDict("SIMPLE").lookupOrDefault<label>("maxPiggyLoop",100);
+	    scalar optEpsilon = mesh.solutionDict().subDict("SIMPLE").lookupOrDefault<scalar>("optTolerance",5e-2);
 
 	    scalar dSensSum = std::numeric_limits<double>::max();
 	    
-	    int optStep = 0;
-	    while (optStep < 200 && simple.loop())
+	    label optStep = 0;
+	    while ( (dSensSum > optEpsilon || !runTime.writeTime()) && optStep < maxPiggyLoop && simple.loop())
 	    {
 		    AD::switchTapeToActive();
 		    AD::position_t reset_to = AD::getTapePosition();
@@ -273,7 +274,7 @@ public:
 
 			    // --- Pressure-velocity SIMPLE corrector
 			    {
-				alpha=alpha_s+(alpha_f-alpha_s)*eta*(1.0+penalty)/(eta + penalty);
+				#include "Alpha.H"
 				#include "UEqn.H"
 				#include "pEqn.H"
 			    }
@@ -346,7 +347,7 @@ public:
     	
 	start();
 	runLoop();
-	//initialGuess();
+	initialGuess();
 	GCMMASolver gcmma(mesh,designSpaceCells);
 	
 	label maxLoop = mesh.solutionDict().subDict("SIMPLE").lookupOrDefault<label>("maxLoop",15);
@@ -355,7 +356,11 @@ public:
 		Info << "Warning: Keyword maxLoop not found in fvSolution/SIMPLE. Default set to 15" << endl;
 	}
     	scalar ch = 1.0;
-    	label maxoutit = 8;
+    	label maxoutit = mesh.solutionDict().subDict("SIMPLE").lookupOrDefault<label>("maxoutit",8);
+	if (!mesh.solutionDict().subDict("SIMPLE").found("maxLoop"))
+	{
+		Info << "Warning: Keyword maxoutit not found in fvSolution/SIMPLE. Default set to 8" << endl;
+	}
    	for (int iter = 0; ch>0.0002 && iter < maxoutit; ++iter) {
     	    checkpointerLoop();
 	    fval = calcFval();
@@ -383,7 +388,8 @@ public:
 	    	fval = oldfval;
 	    }
 	    
-	    for (int inneriter = 0; !conserv && inneriter < maxLoop; ++inneriter) {
+	    bool check = true;
+	    for (int inneriter = 0; !conserv && inneriter < maxLoop && check; ++inneriter) {
 		// Inner iteration update
 		gcmma.InnerUpdate(eta_MMA, J, fval, eta, oldJ, sens, oldfval, dfdeta);
 		eta_MMA.write();
@@ -409,6 +415,7 @@ public:
 	    	const label j = designSpaceCells[i];
 		ch = max(ch,mag(eta[j]-eta_old[j]));
 	    }
+	    Foam::reduce(ch,maxOp<scalar>());
 	    eta_old = eta;
     	}
     	return true;

@@ -36,13 +36,13 @@
 		Info << "Warning: Keyword penalty not found in fvSolution/SIMPLE. Default set to 0.6" << endl;
 	    }
 	    
-    alpha_f =dimensionedScalar("alpha_f", dimless/dimTime, mesh.solutionDict().subDict("SIMPLE").lookupOrDefault<scalar>("alpha_f",0));
+    alpha_f = mesh.solutionDict().subDict("SIMPLE").lookupOrDefault<scalar>("alpha_f",0.1);
     if (!mesh.solutionDict().subDict("SIMPLE").found("alpha_f"))
 	    {
-		Info << "Warning: Keyword alpha_f not found in fvSolution/SIMPLE. Default set to 0" << endl;
+		Info << "Warning: Keyword alpha_f not found in fvSolution/SIMPLE. Default set to 0.1" << endl;
 	    }
 	    
-    alpha_s = dimensionedScalar("alpha_s", dimless/dimTime, mesh.solutionDict().subDict("SIMPLE").lookupOrDefault<scalar>("alpha_s",10e5));
+    alpha_s = mesh.solutionDict().subDict("SIMPLE").lookupOrDefault<scalar>("alpha_s",10e5);
     if (!mesh.solutionDict().subDict("SIMPLE").found("alpha_s"))
 	    {
 		Info << "Warning: Keyword alpha_s not found in fvSolution/SIMPLE. Default set to 10e5" << endl;
@@ -60,13 +60,16 @@
 	Info << "Warning: Keyword nOptSteps not found in fvSolution/SIMPLE. Default set to 100" << endl;
     }
     
-    
-    n = designSpaceCells.size();
-    Foam::reduce(n,sumOp<label>());
+    n = 0.0;
+    forAll(designSpaceCells,i){
+	const label j = designSpaceCells[i];
+	n += mesh.V()[j];
+    }
+    Foam::reduce(n,sumOp<scalar>());
     
     forAll(designSpaceCells,i){
 	const label j = designSpaceCells[i];
-	dfdeta[j] = 1.0/n;
+	dfdeta[j] = mesh.V()[j]/n;
     }
     dfdeta.write();
         Info << "Sum dfdeta = " << gSum(dfdeta) << endl;
