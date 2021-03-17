@@ -197,19 +197,20 @@ void GCMMASolver::Asymp(const Foam::volScalarField& xval, const Foam::volScalarF
 		}
 	}
 	// Set raa0, raa
-	// raa0 = 0;
-	// fill(raa.begin(), raa.end(), 0);
-	// for (int i = 0; i < n; ++i) {
-	// 	double xmami = Foam::max(xmamieps, xmax[i] - xmin[i]);
-	// 	raa0 += Foam::abs(df0dx[i]) * xmami;
-	// 	for (int j = 0; j < m; ++j) {
-	// 		raa[j] += Foam::abs(dfdx[i*m+j])*xmami;
-	// 	}
-	// }
+	raa0 = 0;
+	raa = 0;
+	forAll(designSpaceCells,jj) {
+		const Foam::label i = designSpaceCells[jj];
+		Foam::scalar xmami = Foam::max(xmamieps, Foam::scalar(1.0));
+		raa0 += Foam::mag(df0dx[i]) * xmami;
+		raa += Foam::mag(dfdx[i]) * xmami;
+	}
 	Foam::reduce(raa0,sumOp<scalar>());
 	Foam::reduce(raa,sumOp<scalar>());
-	raa0 = Foam::max(raa0eps, 0.1 * raa0); // Foam::max(raa0eps, (0.1/n)*raa0);
-	raa = Foam::max(raaeps, 0.1 * raa); // Foam::max(raaeps, (0.1/n)*raa[j]);
+	Foam::label n = designSpaceCells.size();
+	Foam::reduce(n,sumOp<label>());
+	raa0 = Foam::max(raa0eps, (0.1/n) * raa0);
+	raa = Foam::max(raaeps, (0.1/n) * raa);
 }
 
 void GCMMASolver::SolveDIP(Foam::volScalarField& x) {
