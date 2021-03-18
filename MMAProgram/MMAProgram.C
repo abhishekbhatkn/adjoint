@@ -232,7 +232,6 @@ public:
 	val = (val/n) - volumeConstraint;
 	    
 	Info << "fval = " << val << endl;
-	    
 	return val;
     }
     
@@ -341,13 +340,11 @@ public:
 	    Info<< "End\n" << endl;
     }
     
-    bool mainSolver() {
-    	Info<< "Starting Program\n" << endl;
+    bool GlobalSolver() {
+    	Info<< "Starting Global Program\n" << endl;
     	scalar J = 0, oldJ = 0.0, fval = 0.0, oldfval = 0.0;
     	
-	start();
-	runLoop();
-	initialGuess();
+    	runLoop();
 	GCMMASolver gcmma(mesh,designSpaceCells);
 	
 	label maxLoop = mesh.solutionDict().subDict("SIMPLE").lookupOrDefault<label>("maxLoop",15);
@@ -357,14 +354,14 @@ public:
 	}
     	scalar ch = 1.0;
     	label maxoutit = mesh.solutionDict().subDict("SIMPLE").lookupOrDefault<label>("maxoutit",8);
-	if (!mesh.solutionDict().subDict("SIMPLE").found("maxLoop"))
+	if (!mesh.solutionDict().subDict("SIMPLE").found("maxoutit"))
 	{
 		Info << "Warning: Keyword maxoutit not found in fvSolution/SIMPLE. Default set to 8" << endl;
 	}
    	for (int iter = 0; ch>0.0002 && iter < maxoutit; ++iter) {
     	    checkpointerLoop();
-	    fval = calcFval();
 	    J = calcCost();
+	    fval = calcFval();
 	    
 	    gcmma.OuterUpdate(eta_MMA, eta, J, sens, fval, dfdeta);  
 	    eta_MMA.write();
@@ -382,20 +379,15 @@ public:
 	    J = calcCost();
 	    fval = calcFval();
 	    bool conserv = gcmma.ConCheck(J, fval);
-	    if (!conserv) {
-	    	eta = eta_old;
-	    	J = oldJ;
-	    	fval = oldfval;
-	    }
-	    
-	    bool check = true;
-	    for (int inneriter = 0; !conserv && inneriter < maxLoop && check; ++inneriter) {
+	    for (int inneriter = 0; !conserv && inneriter < maxLoop; ++inneriter) {
 		// Inner iteration update
 		gcmma.InnerUpdate(eta_MMA, J, fval, eta, oldJ, sens, oldfval, dfdeta);
 		eta_MMA.write();
 
 		eta = eta_MMA;
 		runLoop();
+		//checkpointerLoop();
+		
 		J = calcCost();
 		fval = calcFval();
 		
@@ -407,6 +399,60 @@ public:
 	    	  	fval = oldfval;
 	    	}
 	    }
+    	    eta = eta_MMA;
+	    eta.write();
+	    
+	    ch = 0.0;
+	    forAll(designSpaceCells,i){
+	    	const label j = designSpaceCells[i];
+		ch = max(ch,mag(eta[j]-eta_old[j]));
+	    }
+	    Foam::reduce(ch,maxOp<scalar>());
+	    eta_old = eta;
+    	}
+    	return true;
+    	Info<< "End\n" << endl;
+    }
+    
+    bool MMASolver() {
+    	Info<< "Starting MMA Program\n" << endl;
+    	scalar J = 0, oldJ = 0.0, fval = 0.0, oldfval = 0.0;
+    	
+	start();
+	runLoop();
+	checkpointerLoop();
+	//initialGuess();
+	GCMMASolver mma(mesh,designSpaceCells);
+	
+	scalar ch = 1.0;
+    	label maxMMA = mesh.solutionDict().subDict("SIMPLE").lookupOrDefault<label>("maxMMA",100);
+	if (!mesh.solutionDict().subDict("SIMPLE").found("maxMMA"))
+	{
+		Info << "Warning: Keyword maxMMA not found in fvSolution/SIMPLE. Default set to 100" << endl;
+	}
+   	for (int iter = 0; ch>0.0002 && iter < maxMMA; ++iter) {
+    	    //checkpointerLoop();
+	    runLoop();
+	    J = calcCost();
+	    fval = calcFval();
+	    
+	    mma.MMAUpdate(eta_MMA, eta, J, sens, fval, dfdeta);  
+	    eta_MMA.write();
+	    
+	    Info<< "MMA Loop "<< iter << " completed\n" << endl;
+
+	    eta_old = eta;
+	    eta_old.write();
+	      
+	    oldJ = J;
+	    oldfval = fval;
+
+	    eta = eta_MMA;
+    	    runLoop();
+	    J = calcCost();
+	    fval = calcFval();
+
+
     	    eta = eta_MMA;
 	    eta.write();
 	    
@@ -471,84 +517,9 @@ int main(int argc, char *argv[])
          eta_old
     );
      
-    program.mainSolver();
-/*      
-    program.start();
-    program.runLoop();
-    program.initialGuess();
-    
-    List<label> designSpaceCells = program.designSp();
-    GCMMASolver gcmma(mesh,designSpaceCells);
-    
-    label maxLoop = mesh.solutionDict().subDict("SIMPLE").lookupOrDefault<label>("maxLoop",15);
-    if (!mesh.solutionDict().subDict("SIMPLE").found("maxLoop"))
-    {
-	Info << "Warning: Keyword maxLoop not found in fvSolution/SIMPLE. Default set to 15" << endl;
-    }
-    
-    scalar ch = 1.0;
-    //label maxoutit = 8;
-    for (int iter = 0; ch>0.0002 && iter < 8; ++iter) {
-    	    program.checkpointerLoop();
-	    fval = program.calcFval();
-	    J = program.calcCost();
-	    
-	    gcmma.OuterUpdate(eta_MMA, eta, J, sens, fval, dfdeta);  
-	    eta_MMA.write();
-	    
-	    Info<< "GCMMA Outer Loop completed\n" << endl;
+    program.MMASolver();
+    program.GlobalSolver();
 
-	    eta_old = eta;
-	    eta_old.write();
-	      
-	    oldJ = J;
-	    oldfval = fval;
-
-	    eta = eta_MMA;
-    	    program.runLoop();
-	    J = program.calcCost();
-	    fval = program.calcFval();
-	    bool conserv = gcmma.ConCheck(J, fval);
-	    //Info<< "Updated Conservative: " << conserv << "\n" << endl;
-	    if (!conserv) {
-	    	eta = eta_old;
-	    	J = oldJ;
-	    	fval = oldfval;
-	    }
-
-	    for (int inneriter = 0; !conserv && inneriter < maxLoop; ++inneriter) {
-		// Inner iteration update
-		gcmma.InnerUpdate(eta_MMA, J, fval, eta, oldJ, sens, oldfval, dfdeta);
-		eta_MMA.write();
-		
-		//eta_old = eta;
-		//eta_old.write();
-	    
-		// Check conservativity
-		eta = eta_MMA;
-		program.runLoop();
-		J = program.calcCost();
-		fval = program.calcFval();
-		
-		conserv = gcmma.ConCheck(J, fval);
-		//Info<< "Updated Conservative: " << conserv << "\n" << endl;
-		if (!conserv) {
-	    		eta = eta_old;
-	    		J = oldJ;
-	    	  	fval = oldfval;
-	    	}
-	    }
-	    eta = eta_MMA;
-	    eta.write();
-	    
-	    ch = 0.0;
-	    forAll(designSpaceCells,i){
-	    	const label j = designSpaceCells[i];
-		ch = max(ch,mag(eta[j]-eta_old[j]));
-	    }
-	    eta_old = eta;
-    }
-*/
     Info<< "End\n" << endl;
     return 0;
 }
