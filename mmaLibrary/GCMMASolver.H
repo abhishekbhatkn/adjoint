@@ -65,6 +65,9 @@ public:
 				const Foam::volScalarField& df0dx, const Foam::scalar& fx, const Foam::volScalarField& dfdx);
 	//, const double *xmin, const double *xmax);
 
+	void MMAUpdate(Foam::volScalarField& xmma, const Foam::volScalarField& xval, Foam::scalar& f0x,
+				const Foam::volScalarField& df0dx, const Foam::scalar& fx, const Foam::volScalarField& dfdx);
+
 	// Update [raa0, raa], build and solve GCMMA subproblem, compute [f0app, fapp]
 	void InnerUpdate(Foam::volScalarField &xmma, Foam::scalar& f0xnew, const Foam::scalar& fxnew, const Foam::volScalarField& xval, Foam::scalar& f0x,
                               const Foam::volScalarField& df0dx, const Foam::scalar& fx, const Foam::volScalarField& dfdx);

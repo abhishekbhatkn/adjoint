@@ -115,6 +115,29 @@ void GCMMASolver::OuterUpdate(Foam::volScalarField& xmma, const Foam::volScalarF
 
 }
 
+void GCMMASolver::MMAUpdate(Foam::volScalarField& xmma, const Foam::volScalarField& xval, Foam::scalar& f0x,
+				const Foam::volScalarField& df0dx, const Foam::scalar& fx, const Foam::volScalarField& dfdx)
+{
+
+	// Compute asymptotes
+	Asymp(xval, df0dx, dfdx); //, xmin, xmax);
+
+	// Generate the subproblem
+	GenSub(xval, f0x, df0dx, fx, dfdx); //, xmin, xmax);
+
+	// Update xolds
+	xold2 = xold1;
+	xold1 = xval;
+
+	// Solve the dual with an interior point method
+	xmma = xval;
+	SolveDIP(xmma);
+
+	// Solve the dual with a steepest ascent method
+	//SolveDSA(xmma);
+
+}
+
 void GCMMASolver::InnerUpdate(Foam::volScalarField &xmma, Foam::scalar& f0xnew, const Foam::scalar& fxnew, const Foam::volScalarField& xval, Foam::scalar& f0x,
                               const Foam::volScalarField& df0dx, const Foam::scalar& fx, const Foam::volScalarField& dfdx)
 {
