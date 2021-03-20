@@ -90,13 +90,13 @@
 	Info << "Warning: Keyword maxLoop not found in fvSolution/SIMPLE. Default set to 15" << endl;
     }
     
-  /*  
+
     TempSetting = mesh.solutionDict().subDict("SIMPLE").lookupOrDefault<bool>("TempSetting",false);
     if (mesh.solutionDict().subDict("SIMPLE").found("TempSetting"))
     {
 	Info << "\nNOTE: Calculation settings for multi-objective function\n" << endl;
     }
-    
+  /*      
 	Info<< "Reading field T\n" << endl;
 	volScalarField T
 	(
