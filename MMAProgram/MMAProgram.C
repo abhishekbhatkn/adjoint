@@ -105,13 +105,11 @@ private:
     
     // member variables
 
-    scalar penalty, volumeConstraint;
-    label nOptSteps;
-    scalar n;
-    //bool frozenTurbulence;
+    scalar penalty, volumeConstraint, n, optEpsilon, alpha_s, alpha_f;
+    label nOptSteps, maxPiggyLoop, maxMMA, maxoutit, maxInnerLoop;
+    bool TempSetting;
     List<label> designSpaceCells;
     List<label> solidSpaceCells;
-    scalar alpha_s, alpha_f;
     
     CheckInterface check;
     CheckDict checkDict;
@@ -125,6 +123,7 @@ public:
         Foam::simpleControl& simple,
         Foam::volScalarField& p,
         Foam::volVectorField& U,
+        //Foam::volVectorField& T,
         Foam::singlePhaseTransportModel& laminarTransport,
         autoPtr<incompressible::turbulenceModel>& turbulence,
         IOMRFZoneList& MRF,
@@ -145,6 +144,7 @@ public:
         simple(simple),
         p(p),
         U(U),
+        //T(T),
         laminarTransport(laminarTransport),
         turbulence(turbulence),
         MRF(MRF),
@@ -159,8 +159,7 @@ public:
         pRefValue(pRefValue),
         cumulativeContErr(cumulativeContErr),
         eta_old(eta_old),
-        //alpha_s(" ",dimless/dimTime, 0.0),
-        //alpha_f(" ",dimless/dimTime, 0.0),
+
         check(runTime),
     	checkDict(runTime),
     	checkDB(runTime, checkDict)
@@ -184,8 +183,11 @@ public:
 
 		// --- Pressure-velocity SIMPLE corrector
 		{
-		    #include "Alpha.H"
+		    #include "AlphaDT.H"
 		    #include "UEqn.H"
+		    if (TempSetting) {
+		   	#include "TEqn.H"
+		    }
 		    #include "pEqn.H"
 		}
 
@@ -204,7 +206,7 @@ public:
     
     void start() {
         #include "settings.H"
-        //runLoop();
+
     }
     
     void initialGuess() {
@@ -239,11 +241,7 @@ public:
         Info << "ACTION::calcCost" << endl;
         return CostFunction(mesh).eval();
     }
-/*    
-    List<label> designSp(){
-    	return designSpaceCells;
-    }
-*/    
+       
     void checkpointerLoop() {
 	    Info<< "Starting Piggyback Loop: " << "\n" << endl;
 	    
@@ -255,8 +253,6 @@ public:
 	    label NN = designSpaceCells.size();
 	    Foam::reduce(NN,sumOp<label>());
 	    
-	    label maxPiggyLoop = mesh.solutionDict().subDict("SIMPLE").lookupOrDefault<label>("maxPiggyLoop",100);
-	    scalar optEpsilon = mesh.solutionDict().subDict("SIMPLE").lookupOrDefault<scalar>("optTolerance",5e-2);
 
 	    scalar dSensSum = std::numeric_limits<double>::max();
 	    
@@ -266,34 +262,34 @@ public:
 		    AD::switchTapeToActive();
 		    AD::position_t reset_to = AD::getTapePosition();
 
-		    //for(int optStep = 0; optStep < maxPiggyLoop; optStep++){
-		    	    checkDB.registerAdjoints(); // store tape indices
+	    	    checkDB.registerAdjoints(); // store tape indices
 
-			    Info<< "Time = " << runTime.timeName() << nl << endl;
+		    Info<< "Time = " << runTime.timeName() << nl << endl;
 
-			    // --- Pressure-velocity SIMPLE corrector
-			    {
-				#include "Alpha.H"
-				#include "UEqn.H"
-				#include "pEqn.H"
-			    }
+		    // --- Pressure-velocity SIMPLE corrector
+		    {
+			#include "AlphaDT.H"
+			#include "UEqn.H"
+			if (TempSetting) {
+			    #include "TEqn.H"
+			}
+			#include "pEqn.H"
+		    }
 
-			    laminarTransport.correct();
+		    laminarTransport.correct();
 
-			    // turbulence correct
-			    bool frozenTurbulence = mesh.solutionDict().subDict("SIMPLE").lookupOrDefault<bool>("frozenTurbulence",false);
-			    if(frozenTurbulence){
-				Info << "\nWARNING: Calculating Adjoints with frozen Turbulence assumption\n" << endl;
-				AD::switchTapeToPassive();
-			    }
+		    // turbulence correct
+		    bool frozenTurbulence = mesh.solutionDict().subDict("SIMPLE").lookupOrDefault<bool>("frozenTurbulence",false);
+		    if(frozenTurbulence){
+			Info << "\nWARNING: Calculating Adjoints with frozen Turbulence assumption\n" << endl;
+			AD::switchTapeToPassive();
+		    }
 
-			    turbulence->correct();
+		    turbulence->correct();
 
-			    if(frozenTurbulence){
-			       AD::switchTapeToActive();
-			    }
-
-		    //}
+		    if(frozenTurbulence){
+		       AD::switchTapeToActive();
+		    }
 		    
 		    J = CostFunction(mesh).eval();
 		    checkDB.registerAsOutput();
@@ -336,7 +332,6 @@ public:
 	    Info << "avg/max eta,: " << gAverage(eta) << " " << gMax(eta) << endl;
 
 	    //AD::removeTape();
-	    //runLoop();
 	    Info<< "End\n" << endl;
     }
     
@@ -347,19 +342,10 @@ public:
     	scalar J = 0, oldJ = 0.0, fval = 0.0, oldfval = 0.0;
     	
     	GCMMASolver gcmma(mesh,designSpaceCells);
-	
-	label maxLoop = mesh.solutionDict().subDict("SIMPLE").lookupOrDefault<label>("maxLoop",15);
-	if (!mesh.solutionDict().subDict("SIMPLE").found("maxLoop"))
-	{
-		Info << "Warning: Keyword maxLoop not found in fvSolution/SIMPLE. Default set to 15" << endl;
-	}
+
     	scalar ch = 1.0;
-    	label maxoutit = mesh.solutionDict().subDict("SIMPLE").lookupOrDefault<label>("maxoutit",8);
-	if (!mesh.solutionDict().subDict("SIMPLE").found("maxoutit"))
-	{
-		Info << "Warning: Keyword maxoutit not found in fvSolution/SIMPLE. Default set to 8" << endl;
-	}
-   	for (int iter = 0; ch>0.0002 && iter < maxoutit; ++iter) {
+
+   	for (int iter = 0; ch>0.002 && iter < maxoutit; ++iter) {
     	    checkpointerLoop();
 	    J = calcCost();
 	    fval = calcFval();
@@ -381,14 +367,13 @@ public:
 	    bool conserv = gcmma.ConCheck(J, fval);
 	    Info<< "Outer Loop "<< iter << ": " << runTime.timeName() << " cost: "<< J << " fval: " << fval << " conserv: " << conserv << "\n" << endl;
 	
-	    for (int inneriter = 0; !conserv && inneriter < maxLoop; ++inneriter) {
+	    for (int inneriter = 0; !conserv && inneriter < maxInnerLoop; ++inneriter) {
 		// Inner iteration update
 		gcmma.InnerUpdate(eta_MMA, J, fval, eta, oldJ, sens, oldfval, dfdeta);
 		eta_MMA.write();
 
 		eta = eta_MMA;
 		runLoop();
-		//checkpointerLoop();
 		
 		J = calcCost();
 		fval = calcFval();
@@ -425,16 +410,12 @@ public:
 	start();
 	runLoop();
 	checkpointerLoop();
-	//initialGuess();
+	initialGuess();
 	GCMMASolver mma(mesh,designSpaceCells);
 	
 	scalar ch = 1.0;
-    	label maxMMA = mesh.solutionDict().subDict("SIMPLE").lookupOrDefault<label>("maxMMA",15);
-	if (!mesh.solutionDict().subDict("SIMPLE").found("maxMMA"))
-	{
-		Info << "Warning: Keyword maxMMA not found in fvSolution/SIMPLE. Default set to 15" << endl;
-	}
-   	for (int iter = 0; ch>0.02 && iter < maxMMA; ++iter) {
+
+   	for (int iter = 0; ch>0.002 && iter < maxMMA; ++iter) {
     	    //checkpointerLoop();
 	    runLoop();
 	    J = calcCost();
@@ -492,9 +473,6 @@ int main(int argc, char *argv[])
 
     turbulence->validate();
     
-//-----------------------------------------------------------------------//   
-    //scalar J = 0, oldJ = 0.0, fval = 0.0, oldfval = 0.0;
-      
 //------------------------------------------------------------------------------------------------------//
     MMAProgram program
     (
@@ -503,6 +481,7 @@ int main(int argc, char *argv[])
          simple,
          p,
          U,
+         //T,
          laminarTransport,
          turbulence,
          MRF,

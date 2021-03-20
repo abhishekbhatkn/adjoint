@@ -30,35 +30,109 @@
         }
     }
 
-    penalty = mesh.solutionDict().subDict("SIMPLE").lookupOrDefault<scalar>("penalty",0.6);
-    if (!mesh.solutionDict().subDict("SIMPLE").found("penalty"))
-	    {
-		Info << "Warning: Keyword penalty not found in fvSolution/SIMPLE. Default set to 0.6" << endl;
-	    }
-	    
-    alpha_f = mesh.solutionDict().subDict("SIMPLE").lookupOrDefault<scalar>("alpha_f",0.1);
-    if (!mesh.solutionDict().subDict("SIMPLE").found("alpha_f"))
-	    {
-		Info << "Warning: Keyword alpha_f not found in fvSolution/SIMPLE. Default set to 0.1" << endl;
-	    }
-	    
-    alpha_s = mesh.solutionDict().subDict("SIMPLE").lookupOrDefault<scalar>("alpha_s",10e5);
-    if (!mesh.solutionDict().subDict("SIMPLE").found("alpha_s"))
-	    {
-		Info << "Warning: Keyword alpha_s not found in fvSolution/SIMPLE. Default set to 10e5" << endl;
-	    }
-	        
-    volumeConstraint = mesh.solutionDict().subDict("SIMPLE").lookupOrDefault<scalar>("volumeConstraint",0.4);
-    if (!mesh.solutionDict().subDict("SIMPLE").found("volumeConstraint"))
-    {
-	Info << "Warning: Keyword volumeConstraint not found in fvSolution/SIMPLE. Default set to 0.4" << endl;
-    }
-   
     nOptSteps = mesh.solutionDict().subDict("SIMPLE").lookupOrDefault<label>("nOptSteps",100);
     if (!mesh.solutionDict().subDict("SIMPLE").found("nOptSteps"))
     {
 	Info << "Warning: Keyword nOptSteps not found in fvSolution/SIMPLE. Default set to 100" << endl;
     }
+
+    penalty = mesh.solutionDict().subDict("SIMPLE").lookupOrDefault<scalar>("penalty",0.6);
+    if (!mesh.solutionDict().subDict("SIMPLE").found("penalty"))
+    {
+	Info << "Warning: Keyword penalty not found in fvSolution/SIMPLE. Default set to 0.6" << endl;
+    }
+	    
+    alpha_f = mesh.solutionDict().subDict("SIMPLE").lookupOrDefault<scalar>("alpha_f",0.1);
+    if (!mesh.solutionDict().subDict("SIMPLE").found("alpha_f"))
+    {
+	Info << "Warning: Keyword alpha_f not found in fvSolution/SIMPLE. Default set to 0.1" << endl;
+    }
+	    
+    alpha_s = mesh.solutionDict().subDict("SIMPLE").lookupOrDefault<scalar>("alpha_s",10e5);
+    if (!mesh.solutionDict().subDict("SIMPLE").found("alpha_s"))
+    {
+	Info << "Warning: Keyword alpha_s not found in fvSolution/SIMPLE. Default set to 10e5" << endl;
+    }
+    
+    maxPiggyLoop = mesh.solutionDict().subDict("SIMPLE").lookupOrDefault<label>("maxPiggyLoop",100);
+    if (!mesh.solutionDict().subDict("SIMPLE").found("maxPiggyLoop"))
+    {
+	Info << "Warning: Keyword maxPiggyLoop not found in fvSolution/SIMPLE. Default set to 100" << endl;
+    }
+    
+    optEpsilon = mesh.solutionDict().subDict("SIMPLE").lookupOrDefault<scalar>("optTolerance",5e-2);
+    if (!mesh.solutionDict().subDict("SIMPLE").found("optTolerance"))
+    {
+	Info << "Warning: Keyword optTolerance not found in fvSolution/SIMPLE. Default set to 5e-2" << endl;
+    }
+    
+    maxMMA = mesh.solutionDict().subDict("SIMPLE").lookupOrDefault<label>("maxMMA",15);
+    if (!mesh.solutionDict().subDict("SIMPLE").found("maxMMA"))
+    {
+	Info << "Warning: Keyword maxMMA not found in fvSolution/SIMPLE. Default set to 15" << endl;
+    }
+    
+    volumeConstraint = mesh.solutionDict().subDict("SIMPLE").lookupOrDefault<scalar>("volumeConstraint",0.4);
+    if (!mesh.solutionDict().subDict("SIMPLE").found("volumeConstraint"))
+    {
+	Info << "Warning: Keyword volumeConstraint not found in fvSolution/SIMPLE. Default set to 0.4" << endl;
+    }
+    
+    maxoutit = mesh.solutionDict().subDict("SIMPLE").lookupOrDefault<label>("maxoutit",8);
+    if (!mesh.solutionDict().subDict("SIMPLE").found("maxoutit"))
+    {
+	Info << "Warning: Keyword maxoutit not found in fvSolution/SIMPLE. Default set to 8" << endl;
+    }
+    	
+    maxInnerLoop = mesh.solutionDict().subDict("SIMPLE").lookupOrDefault<label>("maxInnerLoop",15);
+    if (!mesh.solutionDict().subDict("SIMPLE").found("maxInnerLoop"))
+    {
+	Info << "Warning: Keyword maxLoop not found in fvSolution/SIMPLE. Default set to 15" << endl;
+    }
+    
+  /*  
+    TempSetting = mesh.solutionDict().subDict("SIMPLE").lookupOrDefault<bool>("TempSetting",false);
+    if (mesh.solutionDict().subDict("SIMPLE").found("TempSetting"))
+    {
+	Info << "\nNOTE: Calculation settings for multi-objective function\n" << endl;
+    }
+    
+	Info<< "Reading field T\n" << endl;
+	volScalarField T
+	(
+	    IOobject
+	    (
+		"T",
+		runTime.timeName(),
+		mesh,
+		IOobject::MUST_READ,
+		IOobject::AUTO_WRITE
+	    ),
+	    mesh
+	);
+
+	IOdictionary transportProperties
+	(
+	    IOobject
+	    (
+		"transportProperties",
+		runTime.constant(),
+		mesh,
+		IOobject::MUST_READ,
+		IOobject::NO_WRITE
+	    )
+	);
+
+	dimensionedScalar DTs
+	(
+	     transportProperties.lookup("DTs")
+	);
+
+	dimensionedScalar DTf
+	(
+	     transportProperties.lookup("DTf")
+	);
+    */
     
     n = 0.0;
     forAll(designSpaceCells,i){
