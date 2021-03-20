@@ -341,11 +341,12 @@ public:
     }
     
     bool GlobalSolver() {
+        MMASolver();
+        
     	Info<< "Starting Global Program\n" << endl;
     	scalar J = 0, oldJ = 0.0, fval = 0.0, oldfval = 0.0;
     	
-    	runLoop();
-	GCMMASolver gcmma(mesh,designSpaceCells);
+    	GCMMASolver gcmma(mesh,designSpaceCells);
 	
 	label maxLoop = mesh.solutionDict().subDict("SIMPLE").lookupOrDefault<label>("maxLoop",15);
 	if (!mesh.solutionDict().subDict("SIMPLE").found("maxLoop"))
@@ -365,8 +366,6 @@ public:
 	    
 	    gcmma.OuterUpdate(eta_MMA, eta, J, sens, fval, dfdeta);  
 	    eta_MMA.write();
-	    
-	    Info<< "GCMMA Outer Loop completed\n" << endl;
 
 	    eta_old = eta;
 	    eta_old.write();
@@ -378,7 +377,10 @@ public:
     	    runLoop();
 	    J = calcCost();
 	    fval = calcFval();
+	    
 	    bool conserv = gcmma.ConCheck(J, fval);
+	    Info<< "Outer Loop "<< iter << ": " << runTime.timeName() << " cost: "<< J << " fval: " << fval << " conserv: " << conserv << "\n" << endl;
+	
 	    for (int inneriter = 0; !conserv && inneriter < maxLoop; ++inneriter) {
 		// Inner iteration update
 		gcmma.InnerUpdate(eta_MMA, J, fval, eta, oldJ, sens, oldfval, dfdeta);
@@ -390,6 +392,8 @@ public:
 		
 		J = calcCost();
 		fval = calcFval();
+		
+		Info<< "Outer Loop "<< iter << ": " <<"Inner Sub Loop "<< inneriter << ": " << runTime.timeName() << " cost: "<< J << " fval: " << fval << "\n" << endl;
 		
 		conserv = gcmma.ConCheck(J, fval);
 		//Info<< "Updated Conservative: " << conserv << "\n" << endl;
@@ -425,12 +429,12 @@ public:
 	GCMMASolver mma(mesh,designSpaceCells);
 	
 	scalar ch = 1.0;
-    	label maxMMA = mesh.solutionDict().subDict("SIMPLE").lookupOrDefault<label>("maxMMA",100);
+    	label maxMMA = mesh.solutionDict().subDict("SIMPLE").lookupOrDefault<label>("maxMMA",15);
 	if (!mesh.solutionDict().subDict("SIMPLE").found("maxMMA"))
 	{
-		Info << "Warning: Keyword maxMMA not found in fvSolution/SIMPLE. Default set to 100" << endl;
+		Info << "Warning: Keyword maxMMA not found in fvSolution/SIMPLE. Default set to 15" << endl;
 	}
-   	for (int iter = 0; ch>0.0002 && iter < maxMMA; ++iter) {
+   	for (int iter = 0; ch>0.02 && iter < maxMMA; ++iter) {
     	    //checkpointerLoop();
 	    runLoop();
 	    J = calcCost();
@@ -438,8 +442,6 @@ public:
 	    
 	    mma.MMAUpdate(eta_MMA, eta, J, sens, fval, dfdeta);  
 	    eta_MMA.write();
-	    
-	    Info<< "MMA Loop "<< iter << " completed\n" << endl;
 
 	    eta_old = eta;
 	    eta_old.write();
@@ -452,7 +454,6 @@ public:
 	    J = calcCost();
 	    fval = calcFval();
 
-
     	    eta = eta_MMA;
 	    eta.write();
 	    
@@ -463,6 +464,7 @@ public:
 	    }
 	    Foam::reduce(ch,maxOp<scalar>());
 	    eta_old = eta;
+	    Info<< "MMA Loop "<< iter << ": " << runTime.timeName() << " cost: "<< J << " fval: " << fval << " ch: " << ch <<"\n" << endl;
     	}
     	return true;
     	Info<< "End\n" << endl;
@@ -517,7 +519,6 @@ int main(int argc, char *argv[])
          eta_old
     );
      
-    program.MMASolver();
     program.GlobalSolver();
 
     Info<< "End\n" << endl;
