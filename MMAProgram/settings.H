@@ -90,50 +90,6 @@
 	Info << "Warning: Keyword maxLoop not found in fvSolution/SIMPLE. Default set to 15" << endl;
     }
     
-
-    TempSetting = mesh.solutionDict().subDict("SIMPLE").lookupOrDefault<bool>("TempSetting",false);
-    if (mesh.solutionDict().subDict("SIMPLE").found("TempSetting"))
-    {
-	Info << "\nNOTE: Calculation settings for multi-objective function\n" << endl;
-    }
-  /*      
-	Info<< "Reading field T\n" << endl;
-	volScalarField T
-	(
-	    IOobject
-	    (
-		"T",
-		runTime.timeName(),
-		mesh,
-		IOobject::MUST_READ,
-		IOobject::AUTO_WRITE
-	    ),
-	    mesh
-	);
-
-	IOdictionary transportProperties
-	(
-	    IOobject
-	    (
-		"transportProperties",
-		runTime.constant(),
-		mesh,
-		IOobject::MUST_READ,
-		IOobject::NO_WRITE
-	    )
-	);
-
-	dimensionedScalar DTs
-	(
-	     transportProperties.lookup("DTs")
-	);
-
-	dimensionedScalar DTf
-	(
-	     transportProperties.lookup("DTf")
-	);
-    */
-    
     n = 0.0;
     forAll(designSpaceCells,i){
 	const label j = designSpaceCells[i];

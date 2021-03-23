@@ -82,7 +82,7 @@ volScalarField eta_old
 	runTime.timeName(),
 	mesh,
 	IOobject::READ_IF_PRESENT,
-	IOobject::NO_WRITE
+	IOobject::AUTO_WRITE
     ),
     mesh,
     dimensionedScalar("1.0", dimless, 1.0),

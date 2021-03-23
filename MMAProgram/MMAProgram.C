@@ -107,7 +107,6 @@ private:
 
     scalar penalty, volumeConstraint, n, optEpsilon, alpha_s, alpha_f;
     label nOptSteps, maxPiggyLoop, maxMMA, maxoutit, maxInnerLoop;
-    bool TempSetting;
     List<label> designSpaceCells;
     List<label> solidSpaceCells;
     
@@ -123,7 +122,6 @@ public:
         Foam::simpleControl& simple,
         Foam::volScalarField& p,
         Foam::volVectorField& U,
-        //Foam::volVectorField& T,
         Foam::singlePhaseTransportModel& laminarTransport,
         autoPtr<incompressible::turbulenceModel>& turbulence,
         IOMRFZoneList& MRF,
@@ -144,7 +142,6 @@ public:
         simple(simple),
         p(p),
         U(U),
-        //T(T),
         laminarTransport(laminarTransport),
         turbulence(turbulence),
         MRF(MRF),
@@ -183,11 +180,8 @@ public:
 
 		// --- Pressure-velocity SIMPLE corrector
 		{
-		    #include "AlphaDT.H"
+		    #include "Alpha.H"
 		    #include "UEqn.H"
-		    if (TempSetting) {
-		   	#include "TEqn.H"
-		    }
 		    #include "pEqn.H"
 		}
 
@@ -269,11 +263,8 @@ public:
 
 		    // --- Pressure-velocity SIMPLE corrector
 		    {
-			#include "AlphaDT.H"
+			#include "Alpha.H"
 			#include "UEqn.H"
-			if (TempSetting) {
-			    #include "TEqn.H"
-			}
 			#include "pEqn.H"
 		    }
 
@@ -500,7 +491,6 @@ int main(int argc, char *argv[])
          simple,
          p,
          U,
-         //T,
          laminarTransport,
          turbulence,
          MRF,
