@@ -221,7 +221,8 @@ public:
     forAll(solidSpaceCells,i){
     	const label j = solidSpaceCells[i];
         eta[j] = 0.0;
-        } 
+        }
+    runLoop();
     }
     
     scalar calcFval() {  
@@ -336,45 +337,56 @@ public:
     }
     
     bool GlobalSolver() {
+
         MMASolver();
-        
+	//start();
+   	//runLoop();
+   	//checkpointerLoop();
     	Info<< "Starting Global Program\n" << endl;
     	scalar J = 0, oldJ = 0.0, fval = 0.0, oldfval = 0.0;
     	
     	GCMMASolver gcmma(mesh,designSpaceCells);
 
     	scalar ch = 1.0;
-
+	eta_old = eta;
+	eta_old.write();
+	
+	eta = eta_MMA;
+    	runLoop();
+	oldJ = calcCost();
+	oldfval = calcFval();
+   	
    	for (int iter = 0; ch>0.002 && iter < maxoutit; ++iter) {
+   	    //MMASolver();
     	    checkpointerLoop();
 	    J = calcCost();
 	    fval = calcFval();
 	    
 	    gcmma.OuterUpdate(eta_MMA, eta, J, sens, fval, dfdeta);  
+	    //gcmma.InnerUpdate(eta_MMA, J, fval, eta, oldJ, sens, oldfval, dfdeta);
 	    eta_MMA.write();
-
-	    eta_old = eta;
-	    eta_old.write();
-	      
-	    oldJ = J;
-	    oldfval = fval;
 
 	    eta = eta_MMA;
     	    runLoop();
 	    J = calcCost();
 	    fval = calcFval();
-	    
+
 	    bool conserv = gcmma.ConCheck(J, fval);
-	    Info<< "Outer Loop "<< iter << ": " << runTime.timeName() << " cost: "<< J << " fval: " << fval << " conserv: " << conserv << "\n" << endl;
+	    if (!conserv) {
+		eta = eta_old;
+		J = oldJ;
+		fval = oldfval;
+	    }
+	    Info<< "Outer Loop "<< iter << " Start: " << runTime.timeName() << " cost: "<< J << " fval: " << fval << " conserv: " << conserv << "\n" << endl;
 	
 	    for (int inneriter = 0; !conserv && inneriter < maxInnerLoop; ++inneriter) {
 		// Inner iteration update
 		gcmma.InnerUpdate(eta_MMA, J, fval, eta, oldJ, sens, oldfval, dfdeta);
+		//gcmma.OuterUpdate(eta_MMA, eta, J, sens, fval, dfdeta);
 		eta_MMA.write();
 
 		eta = eta_MMA;
 		runLoop();
-		
 		J = calcCost();
 		fval = calcFval();
 		
@@ -383,14 +395,12 @@ public:
 		conserv = gcmma.ConCheck(J, fval);
 		//Info<< "Updated Conservative: " << conserv << "\n" << endl;
 		if (!conserv) {
-	    		eta = eta_old;
-	    		J = oldJ;
-	    	  	fval = oldfval;
-	    	}
+			eta = eta_old;
+			J = oldJ;
+			fval = oldfval;
+		}
 	    }
-    	    eta = eta_MMA;
-	    eta.write();
-	    
+
 	    ch = 0.0;
 	    forAll(designSpaceCells,i){
 	    	const label j = designSpaceCells[i];
@@ -398,6 +408,15 @@ public:
 	    }
 	    Foam::reduce(ch,maxOp<scalar>());
 	    eta_old = eta;
+	    eta_old.write();
+	    oldJ = J;
+	    oldfval = fval;
+	    
+	    runLoop();
+	    J = calcCost();
+	    fval = calcFval();
+    	    
+    	    Info<< "Outer Loop "<< iter << " End: " << runTime.timeName() << " cost: "<< J << " fval: " << fval << " conserv: " << conserv << " ch: " << ch << "\n" << endl;
     	}
     	return true;
     	Info<< "End\n" << endl;
@@ -410,14 +429,13 @@ public:
 	start();
 	runLoop();
 	checkpointerLoop();
-	initialGuess();
+	//initialGuess();
 	GCMMASolver mma(mesh,designSpaceCells);
 	
 	scalar ch = 1.0;
 
    	for (int iter = 0; ch>0.002 && iter < maxMMA; ++iter) {
-    	    //checkpointerLoop();
-	    runLoop();
+	    //checkpointerLoop();
 	    J = calcCost();
 	    fval = calcFval();
 	    
@@ -445,6 +463,7 @@ public:
 	    }
 	    Foam::reduce(ch,maxOp<scalar>());
 	    eta_old = eta;
+	    eta_old.write();
 	    Info<< "MMA Loop "<< iter << ": " << runTime.timeName() << " cost: "<< J << " fval: " << fval << " ch: " << ch <<"\n" << endl;
     	}
     	return true;
@@ -498,7 +517,7 @@ int main(int argc, char *argv[])
          eta_old
     );
      
-    program.GlobalSolver();
+    program.MMASolver();
 
     Info<< "End\n" << endl;
     return 0;
