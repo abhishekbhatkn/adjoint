@@ -1,8 +1,7 @@
     dictionary simpleDict = mesh.solutionDict().subDict("SIMPLE");
 
-    autoPtr<wordList> costFunctionPatches;
-    costFunctionPatches.reset(new wordList(0));
 
+/*
     if (simpleDict.found("costFunctionPatches"))
     {
         costFunctionPatches.reset
@@ -13,11 +12,10 @@
         Info << "Warning: Keyword costFunctionPachtes not found in fvSolution/SIMPLE" << endl;
         Info << "Example:\nSIMPLE{\n  costFunctionPatches (inlet outlet);\n}" << endl;
     }
-
+*/
     const Foam::wordList designSpaceZones(
             simpleDict.lookupOrDefault<Foam::wordList>("designSpace",Foam::wordList())
     );
-
 
     if(designSpaceZones.size()>0){
         forAll(designSpaceZones, i){
@@ -90,21 +88,6 @@
 	Info << "Warning: Keyword maxLoop not found in fvSolution/SIMPLE. Default set to 15" << endl;
     }
     
-    IOdictionary transportProperties
-    (
-        IOobject
-        (
-	    "transportProperties",
-	    runTime.constant(),
-	    mesh,
-	    IOobject::MUST_READ,
-	    IOobject::NO_WRITE
-        )
-    );
-
-    DTs = dimensionedScalar(transportProperties.lookup("DTs"));
-
-    DTf = dimensionedScalar(transportProperties.lookup("DTf"));
     
     n = 0.0;
     forAll(designSpaceCells,i){
