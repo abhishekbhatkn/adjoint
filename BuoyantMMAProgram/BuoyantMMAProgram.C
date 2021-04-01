@@ -74,7 +74,6 @@ Description
 
 // * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * //
 
-//#include "CheckController.H"
 #include "CheckInterface.H"
 #include "CheckDict.H"
 
@@ -90,6 +89,8 @@ private:
     Foam::rhoThermo& thermo;
     Foam::volScalarField& rho;
     Foam::volVectorField& U;
+    Foam::uniformDimensionedVectorField g;
+    Foam::volScalarField& gh;
     Foam::surfaceScalarField& ghf;
     Foam::volScalarField& p_rgh;
     //Foam::singlePhaseTransportModel& laminarTransport;
@@ -108,24 +109,20 @@ private:
     
     Foam::label&  pRefCell;
     Foam::scalar& pRefValue;
-    Foam::uniformDimensionedVectorField& g;
-    Foam::volScalarField& gh;
+
     Foam::scalar& cumulativeContErr;
     const Foam::volScalarField& psi;
-    
-    Foam::uniformDimensionedVectorField& g;
     
     // member variables
     Foam::scalar penalty, volumeConstraint, n, optEpsilon, alpha_s, alpha_f;
     Foam::label nOptSteps, maxPiggyLoop, maxMMA, maxoutit, maxInnerLoop;
     Foam::List<label> designSpaceCells;
     Foam::List<label> solidSpaceCells;
-    const Foam::wordList costFunctionPatches;
-    //Foam::wordList& costFunctionPatches;
-    
-    Foam::dimensionedScalar initialMass, totalVolume, DTs, DTf;
+   
+    Foam::dimensionedScalar initialMass, totalVolume;
     const Foam::dimensionedScalar rhoMax, rhoMin;
-
+    Foam::dimensionedScalar DTs, DTf;
+    const Foam::wordList costFunctionPatches;
     
     CheckInterface check;
     CheckDict checkDict;
@@ -141,6 +138,8 @@ public:
         Foam::rhoThermo& thermo,
         Foam::volScalarField& rho,
         Foam::volVectorField& U,
+        Foam::uniformDimensionedVectorField g,
+        Foam::volScalarField& gh,
         Foam::surfaceScalarField& ghf,
         Foam::volScalarField& p_rgh,
         //Foam::singlePhaseTransportModel& laminarTransport;
@@ -158,9 +157,7 @@ public:
         Foam::surfaceScalarField& phi,
         Foam::label&  pRefCell,
         Foam::scalar& pRefValue,
-        Foam::scalar& cumulativeContErr,
-        Foam::uniformDimensionedVectorField& g,
-        Foam::volScalarField& gh        
+        Foam::scalar& cumulativeContErr
     ) :
         runTime(runTime),
         mesh(mesh),
@@ -169,6 +166,8 @@ public:
         thermo(thermo),
         rho(rho),
         U(U),
+        g(g),
+        gh(gh),
         ghf(ghf),
         p_rgh(p_rgh),
         //laminarTransport(laminarTransport),
@@ -187,8 +186,6 @@ public:
         pRefCell(pRefCell),
         pRefValue(pRefValue),
         cumulativeContErr(cumulativeContErr),
-        g(g),
-        gh(gh),
         
         psi(thermo.psi()),
         initialMass(fvc::domainIntegrate(rho)),
@@ -556,7 +553,6 @@ int main(int argc, char *argv[])
     #include "createMesh.H"
     #include "createControl.H"
     #include "createFields.H"
-    //#include "createFieldRefs.H"
     #include "initContinuityErrs.H"
 
     turbulence->validate();
@@ -571,6 +567,8 @@ int main(int argc, char *argv[])
          thermo,
          rho,
          U,
+         g,
+         gh,
          ghf,
          p_rgh,
          //laminarTransport,
@@ -588,9 +586,7 @@ int main(int argc, char *argv[])
          phi,
          pRefCell,
          pRefValue,
-         cumulativeContErr,
-         g,
-         gh
+         cumulativeContErr
     );
      
     program.MMASolver();
