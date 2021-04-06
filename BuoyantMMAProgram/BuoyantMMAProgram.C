@@ -204,7 +204,6 @@ public:
     	checkDict(runTime),
     	checkDB(runTime, checkDict)
 {
-	Info<< "\nTest\n" << endl;
 	label tapeSizeMB = mesh.solutionDict().subDict("SIMPLE").lookupOrDefault<label>("tapeSizeMB",4096);
 	Info << "Creating Tape, size: " << tapeSizeMB << endl;
 	AD::createGlobalTape(tapeSizeMB/Pstream::nProcs());
@@ -212,7 +211,6 @@ public:
 	AD::registerInputVariable(eta.begin(),eta.end());
 
         AD::switchTapeToPassive();
-        
 }
 
     void runLoop() {
@@ -558,7 +556,7 @@ int main(int argc, char *argv[])
     #include "createFields.H"
     #include "initContinuityErrs.H"
 
-    //turbulence->validate();
+    turbulence->validate();
     
 //------------------------------------------------------------------------------------------------------//
     MMAProgram program
@@ -594,6 +592,7 @@ int main(int argc, char *argv[])
     );
     
     //program.MMASolver();
+    program.start();
     program.runLoop();
     
     Info<< "End\n" << endl;
