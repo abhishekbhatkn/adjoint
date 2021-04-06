@@ -89,6 +89,7 @@ private:
     Foam::rhoThermo& thermo;
     Foam::volScalarField& rho;
     Foam::volVectorField& U;
+    Foam::volScalarField& T;
     Foam::uniformDimensionedVectorField g;
     Foam::volScalarField& gh;
     Foam::surfaceScalarField& ghf;
@@ -109,7 +110,8 @@ private:
     
     Foam::label&  pRefCell;
     Foam::scalar& pRefValue;
-
+    //Foam::volScalarField& psi;
+    
     Foam::scalar& cumulativeContErr;
     const Foam::volScalarField& psi;
     
@@ -138,6 +140,7 @@ public:
         Foam::rhoThermo& thermo,
         Foam::volScalarField& rho,
         Foam::volVectorField& U,
+        Foam::volScalarField& T,
         Foam::uniformDimensionedVectorField g,
         Foam::volScalarField& gh,
         Foam::surfaceScalarField& ghf,
@@ -166,6 +169,7 @@ public:
         thermo(thermo),
         rho(rho),
         U(U),
+        T(T),
         g(g),
         gh(gh),
         ghf(ghf),
@@ -186,7 +190,6 @@ public:
         pRefCell(pRefCell),
         pRefValue(pRefValue),
         cumulativeContErr(cumulativeContErr),
-        
         psi(thermo.psi()),
         initialMass(fvc::domainIntegrate(rho)),
         totalVolume(sum(mesh.V())),
@@ -201,7 +204,7 @@ public:
     	checkDict(runTime),
     	checkDB(runTime, checkDict)
 {
-
+	Info<< "\nTest\n" << endl;
 	label tapeSizeMB = mesh.solutionDict().subDict("SIMPLE").lookupOrDefault<label>("tapeSizeMB",4096);
 	Info << "Creating Tape, size: " << tapeSizeMB << endl;
 	AD::createGlobalTape(tapeSizeMB/Pstream::nProcs());
@@ -209,6 +212,7 @@ public:
 	AD::registerInputVariable(eta.begin(),eta.end());
 
         AD::switchTapeToPassive();
+        
 }
 
     void runLoop() {
@@ -291,11 +295,11 @@ public:
     }
     
     scalar calcTempCost(){
-/*        Info << "ACTION::calcTempCost" << endl;
+        Info << "ACTION::calcTempCost" << endl;
         scalar Jt = 0;
 	forAll(costFunctionPatches,cI)
 	{
-	Foam::label patchI = mesh.boundaryMesh().findPatchID(costFunctionPatches[cI] );
+	Foam::label patchI = mesh.boundaryMesh().findPatchID(costFunctionPatches[cI]);
 	Jt += gSum
 		(
 		    phi.boundaryField()[patchI]*(T.boundaryField()[patchI])
@@ -303,7 +307,6 @@ public:
 	}
 	Info<< "cost temp: " << Jt << endl;
 	return Jt;
-*/    return 0;
     }
     
     scalar calcCost(){
@@ -555,7 +558,7 @@ int main(int argc, char *argv[])
     #include "createFields.H"
     #include "initContinuityErrs.H"
 
-    turbulence->validate();
+    //turbulence->validate();
     
 //------------------------------------------------------------------------------------------------------//
     MMAProgram program
@@ -567,6 +570,7 @@ int main(int argc, char *argv[])
          thermo,
          rho,
          U,
+         T,
          g,
          gh,
          ghf,
@@ -588,9 +592,10 @@ int main(int argc, char *argv[])
          pRefValue,
          cumulativeContErr
     );
-     
-    program.MMASolver();
-
+    
+    //program.MMASolver();
+    program.runLoop();
+    
     Info<< "End\n" << endl;
     return 0;
 }

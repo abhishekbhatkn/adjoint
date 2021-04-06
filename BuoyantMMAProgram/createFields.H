@@ -46,6 +46,20 @@ volVectorField U
     mesh
 );
 
+Info<< "Reading field T\n" << endl;
+volScalarField T
+(
+    IOobject
+    (
+        "T",
+        runTime.timeName(),
+        mesh,
+        IOobject::MUST_READ,
+        IOobject::AUTO_WRITE
+    ),
+    mesh
+);
+
 #include "compressibleCreatePhi.H"
 
 Info<< "Creating turbulence model\n" << endl;
