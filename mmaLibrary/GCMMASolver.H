@@ -57,45 +57,42 @@
 class GCMMASolver {
 
 public:
-	GCMMASolver(Foam::fvMesh &mesh, Foam::List<label> &designSpaceCells);
+	GCMMASolver(Foam::fvMesh &mesh, Foam::List<label> &designSpaceCells, Foam::label mm);
 
 public:	
 	// Compute [L, U, raa0, raa], build and solve GCMMA subproblem, compute [f0app, fapp]
 	void OuterUpdate(Foam::volScalarField& xmma, const Foam::volScalarField& xval, Foam::scalar& f0x,
-				const Foam::volScalarField& df0dx, const Foam::scalar& fx, const Foam::volScalarField& dfdx);
+				const Foam::volScalarField& df0dx, const Foam::List<Foam::scalar>& fx, const Foam::volScalarField& dfdx);
 	//, const double *xmin, const double *xmax);
 
 	void MMAUpdate(Foam::volScalarField& xmma, const Foam::volScalarField& xval, Foam::scalar& f0x,
-				const Foam::volScalarField& df0dx, const Foam::scalar& fx, const Foam::volScalarField& dfdx);
+				const Foam::volScalarField& df0dx, const Foam::List<Foam::scalar>& fx, const Foam::volScalarField& dfdx);
 
 	// Update [raa0, raa], build and solve GCMMA subproblem, compute [f0app, fapp]
-	void InnerUpdate(Foam::volScalarField &xmma, Foam::scalar& f0xnew, const Foam::scalar& fxnew, const Foam::volScalarField& xval, Foam::scalar& f0x,
-                              const Foam::volScalarField& df0dx, const Foam::scalar& fx, const Foam::volScalarField& dfdx);
+	void InnerUpdate(Foam::volScalarField &xmma, Foam::scalar& f0xnew, const Foam::List<Foam::scalar>& fxnew, const Foam::volScalarField& xval, Foam::scalar& f0x, const Foam::volScalarField& df0dx, const Foam::List<Foam::scalar>& fx, const Foam::volScalarField& dfdx);
 
 	// Check whether the new solution is conservative
-	bool ConCheck(Foam::scalar& f0xnew, Foam::scalar& fxnew) const;
+	bool ConCheck(Foam::scalar& f0xnew, Foam::List<Foam::scalar>& fxnew) const;
 
 private:
 	Foam::fvMesh& mesh;
 	
 	Foam::List<label>& designSpaceCells;
-
-	Foam::volScalarField dummy;	
-	Foam::label outeriter;
+		
+	Foam::label m, outeriter;
+	
+	Foam::volScalarField dummy;
 	
 	const Foam::scalar raa0eps, raaeps, xmamieps, epsimin, move, albefa;
 
-	Foam::scalar asyminit, asymdec, asyminc;
-
-	Foam::scalar raa0, raa, a, c, d, y, z;
+	Foam::scalar asyminit, asymdec, asyminc, raa0, z, r0, f0app;;
 	
+	Foam::List<scalar> raa, a, c, d, y, lam, mu, b, grad, r, fapp;
 	Foam::List<scalar> s;
-	
-	Foam::scalar lam, mu, b, grad, hess, r, fapp, r0, f0app;
-
+	Foam::List<scalar> hess;
 	Foam::volScalarField xold1, xold2;
 	
-	Foam::volScalarField low, upp, alpha, beta, p0, q0, pij, qij;
+	Foam::volScalarField low, upp, alpha, beta, p0, q0, pi_0, pi_1, qi_0, qi_1;
 	
 private:
 
@@ -107,10 +104,10 @@ private:
 	void Asymp(const Foam::volScalarField& xval, const Foam::volScalarField& df0dx, const Foam::volScalarField& dfdx);
 
 	// Update [raa0, raa]
-	void RaaUpdate(const Foam::volScalarField& xmma, const Foam::volScalarField& xval, Foam::scalar& f0xnew, const Foam::scalar& fxnew);
+	void RaaUpdate(const Foam::volScalarField& xmma, const Foam::volScalarField& xval, Foam::scalar& f0xnew, const Foam::List<Foam::scalar>& fxnew);
 
 	// Build CGMMA subproblem
-	void GenSub(const Foam::volScalarField& xval, Foam::scalar& f0x, const Foam::volScalarField& df0dx, const Foam::scalar& fx, const Foam::volScalarField& dfdx); 
+	void GenSub(const Foam::volScalarField& xval, Foam::scalar& f0x, const Foam::volScalarField& df0dx, const Foam::List<Foam::scalar>& fx, const Foam::volScalarField& dfdx); 
 
 	// Compute [f0app, fapp]
 	void ComputeApprox(const Foam::volScalarField& xmma);
@@ -125,6 +122,6 @@ private:
 	void DualLineSearch();
 	Foam::scalar DualResidual(Foam::volScalarField& x, Foam::scalar& epsi);
 
-	//static void Factorize(double *K, int n);
-	//static void Solve(double *K, double *x, int n); */
+	void Factorize(Foam::List<scalar>& K);
+	void Solve(Foam::List<scalar>& K, Foam::List<scalar>& x);
 };
