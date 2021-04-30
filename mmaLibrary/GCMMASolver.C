@@ -250,7 +250,7 @@ void GCMMASolver::Asymp(const Foam::volScalarField& xval, const Foam::volScalarF
 	for (Foam::label j = 0; j < m; ++j) {
 		raa[j] = Foam::max(raaeps, 0.1 * raa[j]); //Foam::max(raaeps, (0.1/n) * raa[j]);
 	}
-	//Info << "raa0 value: " << raa0 <<" raa value: " << sum(raa) <<"\n" << endl;
+	Info << "raa0 value: " << raa0 <<" raa value: " << sum(raa) <<"\n" << endl;
 }
 
 void GCMMASolver::SolveDIP(Foam::volScalarField& x) {
@@ -421,7 +421,7 @@ void GCMMASolver::DualHess(Foam::volScalarField& x) {
 	for (Foam::label j = 0; j < m*m; ++j) {
 		hess[j] = 0;
 	}
-	Info<< "hess: " << hess << endl;
+	//Info<< "hess: " << hess << endl;
 	forAll(designSpaceCells,jj) {
 		const Foam::label i = designSpaceCells[jj];
 		hess[0] += PQ1[i] * df2[i] * PQ1[i];
