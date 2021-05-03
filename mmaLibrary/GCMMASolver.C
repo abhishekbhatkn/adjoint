@@ -614,8 +614,8 @@ void GCMMASolver::GenSub(const Foam::volScalarField& xval, Foam::scalar& f0x, co
 				Foam::scalar xmamiinv = 1.0 / Foam::max(xmamieps, 1.0);
 				Foam::scalar pq = 0.001 * Foam::mag(dfdx[i]) + raa[j] * xmamiinv;
 				if (j==0) {
-					pi_0[i] = Foam::pow(upp[i] - xval[i], 2.0) * (dfdxp + pq);
-					qi_0[i] = Foam::pow(xval[i] - low[i], 2.0) * (dfdxm + pq);
+					pi_0[i] = Foam::pow(upp[i] - xval[i], 2.0) * (dfdxm + pq);
+					qi_0[i] = Foam::pow(xval[i] - low[i], 2.0) * (dfdxp + pq);
 					r[j] += pi_0[i] * uxinv + qi_0[i] * xlinv;
 				}
 				if (j==1) {
