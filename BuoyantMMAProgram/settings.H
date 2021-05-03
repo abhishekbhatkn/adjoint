@@ -91,6 +91,12 @@
     factorT = simpleDict.lookupOrDefault<scalar>("factorT",0.0);
     factorP = simpleDict.lookupOrDefault<scalar>("factorP",1.0);
     
+    // reference rho
+	refRho = 1027;
+
+    // reference Cp
+	Cp = 4195;
+    
     n = 0.0;
     forAll(designSpaceCells,i){
 	const label j = designSpaceCells[i];
