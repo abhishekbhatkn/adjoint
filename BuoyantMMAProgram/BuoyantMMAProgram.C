@@ -122,8 +122,8 @@ private:
 	CheckDatabase checkDB;
     
     // member variables
-    Foam::scalar penalty, volumeConstraint, n, optEpsilon, porosity_s, porosity_f, factorT, factorP, refRho, Cp;
-    Foam::label nOptSteps, maxPiggyLoop, maxMMA, maxoutit, maxInnerLoop;
+    Foam::scalar penalty, volumeConstraint, designVolume, optEpsilon, porosity_s, porosity_f, factorT, factorP, refRho, Cp;
+    Foam::label nOptSteps, maxPiggyLoop, initLoop, maxoutit, maxInnerLoop;
     Foam::List<label> designSpaceCells;
     Foam::List<label> solidSpaceCells;
     
@@ -246,7 +246,10 @@ public:
     void start() {
         #include "settings.H"
         initialGuess();
-
+        for (label i = 0; i < initLoop; ++i) {
+        	runLoop();
+        }
+        Info << "Initialization Complete ! " << endl;
     }
     
     void initialGuess() {
@@ -264,6 +267,12 @@ public:
         }
     eta.write();
     
+    forAll(designSpaceCells,i){
+	    const label j = designSpaceCells[i];
+	    eta[j] = volumeConstraint; //*designVolume/(mesh.V()[j]*designSpaceCells.size());
+    }
+    List<scalar> value(2,0.0);
+    value = calcFval();
     Info << "Eta Set ! " << endl;
 
     }
@@ -276,8 +285,8 @@ public:
 	    val += eta[j] * mesh.V()[j];
 	}
 	Foam::reduce(val,sumOp<scalar>());
-	value[0] = volumeConstraint-(val/n);
-	value[1] = (val/n)-volumeConstraint;
+	value[0] = volumeConstraint-(val/designVolume);
+	value[1] = 0; //(val/n)-volumeConstraint;
 
 	Info << "fval1 = " << value[0] << " fval2 = " << value[1] << endl;
 	return value;
@@ -318,7 +327,7 @@ public:
     
     scalar calcCost(){
         scalar J = 0;
-	J = -factorT*(calcTempCost()-30)/(5-30) + factorP*(calcPrCost()-0.0006)/(0.000006-0.0006);
+	J = -factorT*(calcTempCost()-100)/(10-100) + factorP*(calcPrCost()-0.000001)/(0.0-0.000001);
 	return J;
     }
        
@@ -335,7 +344,7 @@ public:
 	    
 
 	    scalar dSensSum = std::numeric_limits<double>::max();
-	    scalar maxSens = 0, minSens = 0;
+	    //scalar maxSens = 0, minSens = 0;
 	    
 	    label optStep = 0;
 	    while ( (dSensSum > optEpsilon || !runTime.writeTime()) && optStep < maxPiggyLoop && simple.loop())
@@ -394,19 +403,11 @@ public:
 			const label j = designSpaceCells[i];
 			sens[j] = AD::derivative(eta[j]) / mesh.V()[j];
 			sensSum += mag(sens[j]);
-			maxSens = max(maxSens, sens[j]);
-			minSens = min(minSens, sens[j]);
 		    }
 		    
 		    Foam::reduce(sensSum,sumOp<scalar>());
-		    Foam::reduce(maxSens,maxOp<scalar>());
-		    Foam::reduce(minSens,minOp<scalar>());
 		    
-/*		    forAll(designSpaceCells,i){
-			const label j = designSpaceCells[i];
-			sens[j] = 1000*(sens[j])/((maxSens-minSens));
-		    }
-*/		    Foam::reduce(norm2,sumOp<scalar>());
+		    Foam::reduce(norm2,sumOp<scalar>());
 		    dSensSum = mag(sensSum - oldSensSum)/NN;
 		    optStep++;
 		    Info << "piggy: " << optStep << " " << runTime.timeName() << " " << sensSum << " " << dSensSum << " " << norm2 << " " << J << endl;
@@ -421,9 +422,7 @@ public:
 	    }
 	    
 	    Info << "avg/max eta,: " << gAverage(eta) << " " << gMax(eta) << endl;
-
-	    //AD::removeTape();
-	    Info<< "End\n" << endl;
+	    Info<< "End of checkpointerLoop\n" << endl;
     }
     
     bool GlobalSolver() {
@@ -517,12 +516,12 @@ public:
 	    
     	    Info<< "Outer Loop "<< iter << " End: " << runTime.timeName() << " cost: "<< J << " fval: " << fval << " conserv: " << conserv << " senscheck: " << senscheck << "\n" << endl;
     	}
-	//MMASolver();
-	Info<< "GLobal Solver End\n" << endl;
 	fval = calcCost();
+	Info<< "GLobal Solver End\n" << endl;
     	return true;
     }
-    
+};
+/*    
     bool MMASolver() {
     	Info<< "Starting MMA Program\n" << endl;
     	scalar J = 0;
@@ -566,8 +565,7 @@ public:
     	}
     	Info<< "MMA Solver End\n" << endl;
     	return true;
-    }
-};
+    }*/
 
 // * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * * //
 

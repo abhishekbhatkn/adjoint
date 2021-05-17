@@ -1,4 +1,5 @@
 EXE_INC = \
+    -g \
     -I$(LIB_SRC)/finiteVolume/lnInclude \
     -I$(LIB_SRC)/meshTools/lnInclude \
     -I$(LIB_SRC)/sampling/lnInclude \
@@ -12,6 +13,7 @@ EXE_INC = \
     -I$(FOAM_APP)/discreteAdjointOpenFOAM/adjoint/simpleMMACheckpointer
 
 EXE_LIBS = \
+    -g \
     -lfiniteVolume \
     -lfvOptions \
     -lmeshTools \

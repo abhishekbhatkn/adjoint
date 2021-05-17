@@ -64,10 +64,10 @@
 	Info << "Warning: Keyword optTolerance not found in fvSolution/SIMPLE. Default set to 5e-2" << endl;
     }
     
-    maxMMA = simpleDict.lookupOrDefault<label>("maxMMA",15);
-    if (!simpleDict.found("maxMMA"))
+    initLoop = simpleDict.lookupOrDefault<label>("initLoop",5);
+    if (!simpleDict.found("initLoop"))
     {
-	Info << "Warning: Keyword maxMMA not found in fvSolution/SIMPLE. Default set to 15" << endl;
+	Info << "Warning: Keyword initLoop not found in fvSolution/SIMPLE. Default set to 5" << endl;
     }
     
     volumeConstraint = simpleDict.lookupOrDefault<scalar>("volumeConstraint",0.4);
@@ -97,16 +97,16 @@
     // reference Cp
 	Cp = 4195;
     
-    n = 0.0;
+    designVolume = 0.0;
     forAll(designSpaceCells,i){
 	const label j = designSpaceCells[i];
-	n += mesh.V()[j];
+	designVolume += mesh.V()[j];
     }
-    Foam::reduce(n,sumOp<scalar>());
+    Foam::reduce(designVolume,sumOp<scalar>());
     
     forAll(designSpaceCells,i){
 	const label j = designSpaceCells[i];
-	dfdeta[j] = mesh.V()[j]/n;
+	dfdeta[j] = mesh.V()[j]/designVolume;
     }
     dfdeta.write();
         Info << "Sum dfdeta = " << gSum(dfdeta) << endl;
