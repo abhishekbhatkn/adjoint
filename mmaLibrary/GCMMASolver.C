@@ -46,7 +46,7 @@ GCMMASolver::GCMMASolver(Foam::fvMesh &mesh, Foam::List<label> &designSpaceCells
 	, raaeps(1e-6)
 	, xmamieps(1e-5)
 	, epsimin(1e-7)
-	, move(0.5)
+	, move(1.0)
 	, albefa(0.1)
 	, asyminit(0.5)
 	, asymdec(0.7)
@@ -113,7 +113,7 @@ void GCMMASolver::OuterUpdate(Foam::volScalarField& xmma, const Foam::volScalarF
 	// Compute approximation values
 	ComputeApprox(xmma);
 	
-	Info<< "OuterUpdate Complete! " << endl;
+	//Info<< "OuterUpdate Complete! " << endl;
 
 }
 
@@ -122,6 +122,11 @@ void GCMMASolver::MMAUpdate(Foam::volScalarField& xmma, const Foam::volScalarFie
 
 	// Compute asymptotes
 	Asymp(xval, df0dx, dfdx); //, xmin, xmax);
+	
+	raa0 = 0.001;
+	for (Foam::label j = 0; j < m; ++j) {
+		raa[j] = 0.001;
+	}
 
 	// Generate the subproblem
 	GenSub(xval, f0x, df0dx, fx, dfdx); //, xmin, xmax);
@@ -137,7 +142,7 @@ void GCMMASolver::MMAUpdate(Foam::volScalarField& xmma, const Foam::volScalarFie
 	// Solve the dual with a steepest ascent method
 	//SolveDSA(xmma);
 	
-	Info<< "MMAUpdate Complete! " << endl;
+	//Foam::Info<< "MMAUpdate Complete! " << endl;
 
 }
 
@@ -159,11 +164,11 @@ void GCMMASolver::InnerUpdate(Foam::volScalarField &xmma, Foam::scalar& f0xnew, 
 	// Compute approximation values
 	ComputeApprox(xmma);
 	
-	Info<< "InnerUpdate Complete! " << endl;
+	//Info<< "InnerUpdate Complete! " << endl;
 }
 
 bool GCMMASolver::ConCheck(Foam::scalar& f0xnew, Foam::List<Foam::scalar>& fxnew) const {
-	Info<< "ConCheck Start! " << endl;
+	//Info<< "ConCheck Start! " << endl;
 	if (f0app + epsimin < f0xnew) {
 		return false;
 	}
@@ -209,12 +214,12 @@ void GCMMASolver::Asymp(const Foam::volScalarField& xval, const Foam::volScalarF
 
 			Foam::scalar xmami = Foam::max(xmamieps, Foam::scalar(1.0));
 			// double xmami = xmax[i] - xmin[i];
-			low[i] = Foam::max(low[i], xval[i] - 100.0 * xmami);
-			low[i] = Foam::min(low[i], xval[i] - 1e-5 * xmami);
-			upp[i] = Foam::max(upp[i], xval[i] + 1e-5 * xmami);
-			upp[i] = Foam::min(upp[i], xval[i] + 100.0 * xmami);
+			low[i] = Foam::max(low[i], xval[i] - 10.0 * xmami);
+			low[i] = Foam::min(low[i], xval[i] - 0.001 * xmami);
+			upp[i] = Foam::max(upp[i], xval[i] + 0.001 * xmami);
+			upp[i] = Foam::min(upp[i], xval[i] + 10.0 * xmami);
 
-			Foam::scalar xmi = 0.0 - 1.0e-6;
+/*			Foam::scalar xmi = 0.0 - 1.0e-6;
 			Foam::scalar xma = 1.0 + 1.0e-6;
 			if (xval[i] < xmi) {
 				low[i] = xval[i] - (xma - xval[i]) / Foam::scalar(0.9);
@@ -224,7 +229,7 @@ void GCMMASolver::Asymp(const Foam::volScalarField& xval, const Foam::volScalarF
 				low[i] = xval[i] - (xval[i] - xmi) / Foam::scalar(0.9);
 				upp[i] = xval[i] + (xval[i] - xmi) / Foam::scalar(0.9);
 			}
-		}
+*/		}
 	}
 	// Set raa0, raa
 	raa0 = 0;
@@ -246,11 +251,11 @@ void GCMMASolver::Asymp(const Foam::volScalarField& xval, const Foam::volScalarF
 	Foam::label n = designSpaceCells.size();
 	Foam::reduce(n,sumOp<label>());
 	
-	raa0 = Foam::max(raa0eps, 0.1 * raa0); //Foam::max(raa0eps, (0.1/n) * raa0);
+	raa0 = Foam::max(raa0eps, (0.1/n) * raa0); //Foam::max(raa0eps, (0.1/n) * raa0);
 	for (Foam::label j = 0; j < m; ++j) {
-		raa[j] = Foam::max(raaeps, 0.1 * raa[j]); //Foam::max(raaeps, (0.1/n) * raa[j]);
+		raa[j] = Foam::max(raaeps, (0.1/n) * raa[j]); //Foam::max(raaeps, (0.1/n) * raa[j]);
 	}
-	Info << "raa0 value: " << raa0 <<" raa value: " << sum(raa) <<"\n" << endl;
+	//Info << "raa0 value: " << raa0 <<" raa value: " << sum(raa) <<"\n" << endl;
 }
 
 void GCMMASolver::SolveDIP(Foam::volScalarField& x) {
@@ -268,7 +273,7 @@ void GCMMASolver::SolveDIP(Foam::volScalarField& x) {
 	while (epsi > tol) {
 
 		loop = 0;
-		while (err > 0.9 * epsi && loop < 100) {
+		while (err > 0.9 * epsi && loop < 1000) {
 			loop++;
 
 			// Set up Newton system
@@ -302,6 +307,7 @@ void GCMMASolver::SolveDIP(Foam::volScalarField& x) {
 
 			// Compute KKT res
 			err = DualResidual(x, epsi);
+			//Foam::Info << "epsi: " << epsi << " err: " << err << endl;
 		}
 		epsi = epsi * 0.1;
 	}
