@@ -306,7 +306,7 @@ public:
 	    val += eta[j] * mesh.V()[j];
 	}
 	Foam::reduce(val,sumOp<scalar>());
-	value[0] = mag(100*(volumeConstraint-(val/designVolume)));
+	value[0] = 100*(volumeConstraint-(val/designVolume));
 	value[1] = 0.0; //100*((val/designVolume)-volumeConstraint);
 
 
