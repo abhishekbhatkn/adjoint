@@ -40,10 +40,10 @@
 	Info << "Warning: Keyword penalty not found in fvSolution/SIMPLE. Default set to 0.6" << endl;
     }
 	    
-    porosity_f = simpleDict.lookupOrDefault<scalar>("porosity_f",0.1);
+    porosity_f = simpleDict.lookupOrDefault<scalar>("porosity_f",0.0);
     if (!simpleDict.found("porosity_f"))
     {
-	Info << "Warning: Keyword porosity_f not found in fvSolution/SIMPLE. Default set to 0.1" << endl;
+	Info << "Warning: Keyword porosity_f not found in fvSolution/SIMPLE. Default set to 0.0" << endl;
     }
 	    
     porosity_s = simpleDict.lookupOrDefault<scalar>("porosity_s",10e5);
@@ -98,15 +98,17 @@
 	Cp = 4195;
     
     designVolume = 0.0;
+    designSize = designSpaceCells.size();
     forAll(designSpaceCells,i){
 	const label j = designSpaceCells[i];
 	designVolume += mesh.V()[j];
     }
     Foam::reduce(designVolume,sumOp<scalar>());
+    Foam::reduce(designSize,sumOp<label>());
     
     forAll(designSpaceCells,i){
 	const label j = designSpaceCells[i];
-	dfdeta[j] = mesh.V()[j]/designVolume;
+	dfdeta[j] = mesh.V()[j]*designSize/designVolume;
     }
     dfdeta.write();
         Info << "Sum dfdeta = " << gSum(dfdeta) << endl;

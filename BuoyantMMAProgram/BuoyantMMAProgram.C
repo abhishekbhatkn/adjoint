@@ -123,12 +123,12 @@ private:
     
     // member variables
     Foam::scalar penalty, volumeConstraint, designVolume, optEpsilon, porosity_s, porosity_f, factorT, factorP, refRho, Cp;
-    Foam::label nOptSteps, maxPiggyLoop, initLoop, maxoutit, maxInnerLoop;
+    Foam::label nOptSteps, maxPiggyLoop, initLoop, maxoutit, maxInnerLoop, designSize;
     Foam::List<label> designSpaceCells;
     Foam::List<label> solidSpaceCells;
     
     Foam::scalar fluidCp, fluidRho;
-    
+     
 
 
 public:
@@ -217,7 +217,10 @@ public:
     void runLoop() {
 	Info<< "\nStarting time loop\n" << endl;
 	label iter = 0;
-	while (iter < nOptSteps && simple.loop())
+	Foam::volScalarField pold("pold",p), Told("Told",T);
+	Foam::volVectorField Uold("Uold",U);
+	bool check = true;
+	while (iter < nOptSteps && check && simple.loop())
 	{
 	    	iter++;
 		Info<< "Time = " << runTime.timeName() << nl << endl;
@@ -234,6 +237,24 @@ public:
 		turbulence->correct();
 
 		runTime.write();
+		if (runTime.writeTime()) {
+			scalar maxdiff = 0.0;
+			forAll(p,i) {
+				maxdiff = max(maxdiff,mag(U[i].x()-Uold[i].x()));
+				maxdiff = max(maxdiff,mag(U[i].y()-Uold[i].y()));
+				maxdiff = max(maxdiff,mag(U[i].z()-Uold[i].z()));
+				maxdiff = max(maxdiff,mag(T[i]-Told[i]));
+				maxdiff = max(maxdiff,mag(p[i]-pold[i]));
+			}
+			Foam::reduce(maxdiff,maxOp<scalar>());
+			Info << "MaxDiff: " << maxdiff << endl;
+			Uold = U;
+			Told = T;
+			pold = p;
+			if (maxdiff < 1e-20) {
+				check = false;
+			}
+		}
 
 		runTime.printExecutionTime(Info);
 	}
@@ -245,7 +266,7 @@ public:
     
     void start() {
         #include "settings.H"
-        initialGuess();
+        //initialGuess();
         for (label i = 0; i < initLoop; ++i) {
         	runLoop();
         }
@@ -285,8 +306,9 @@ public:
 	    val += eta[j] * mesh.V()[j];
 	}
 	Foam::reduce(val,sumOp<scalar>());
-	value[0] = volumeConstraint-(val/designVolume);
-	value[1] = 0; //(val/n)-volumeConstraint;
+	value[0] = mag(100*(volumeConstraint-(val/designVolume)));
+	value[1] = 0.0; //100*((val/designVolume)-volumeConstraint);
+
 
 	Info << "fval1 = " << value[0] << " fval2 = " << value[1] << endl;
 	return value;
@@ -327,7 +349,7 @@ public:
     
     scalar calcCost(){
         scalar J = 0;
-	J = -factorT*(calcTempCost()-100)/(10-100) + factorP*(calcPrCost()-0.000001)/(0.0-0.000001);
+	J = -factorT*(calcTempCost()) + factorP*(calcPrCost()*100000);
 	return J;
     }
        
@@ -401,7 +423,7 @@ public:
 
 		    forAll(designSpaceCells,i){
 			const label j = designSpaceCells[i];
-			sens[j] = AD::derivative(eta[j]) / mesh.V()[j];
+			sens[j] = AD::derivative(eta[j]) * designSize*mesh.V()[j]/designVolume;
 			sensSum += mag(sens[j]);
 		    }
 		    
@@ -436,15 +458,13 @@ public:
     	List<scalar> fval, oldfval;
     	//GCMMASolver gcmma(mesh,designSpaceCells,2);
 
-    	scalar senscheck = 1.0;
+    	scalar check = 1.0;
 	eta_old = eta;
-	U_old = U;
 	eta_old.write();
-	U_old.write();
 	
 	GCMMASolver gcmma(mesh,designSpaceCells,2);
    	
-   	for (int iter = 0; senscheck>0.002 && iter < maxoutit; ++iter) {
+   	for (int iter = 0; check>0.002 && iter < maxoutit; ++iter) {
    	    runLoop();
    	    //runLoop();
    	    checkpointerLoop();
@@ -453,18 +473,23 @@ public:
 	    if (iter == 0) {
    	    	oldJ = J;
 		oldfval = fval;
+		Info<< " Start: " << runTime.timeName() << " cost: "<< J << " fval: " << fval  << " check: " << check << "\n" << endl;
 	    }   
-	    //bool conserv = gcmma.ConCheck(J, fval);
-	    gcmma.OuterUpdate(eta_MMA, eta, J, sens, fval, dfdeta);  
-	    //gcmma.InnerUpdate(eta_MMA, J, fval, eta, oldJ, sens, oldfval, dfdeta);
-	    //eta_MMA = eta;
-	    eta_MMA.write();
-	    bool conserv = gcmma.ConCheck(J, fval);
-
-/*	    eta = eta_MMA;
+	    
+	    gcmma.MMAUpdate(eta_MMA, eta, J, sens, fval, dfdeta);
+	    eta = eta_MMA;
     	    runLoop();
 	    J = calcCost();
 	    fval = calcFval();
+/*	    
+	    //bool conserv = gcmma.ConCheck(J, fval);
+	    //gcmma.OuterUpdate(eta_MMA, eta, J, sens, fval, dfdeta);  
+	    //gcmma.InnerUpdate(eta_MMA, J, fval, eta, oldJ, sens, oldfval, dfdeta);
+	    //eta_MMA = eta;
+	    //eta_MMA.write();
+	    //bool conserv = gcmma.ConCheck(J, fval);
+
+	    
 
 	    
 	    if (!conserv) {
@@ -473,12 +498,12 @@ public:
 		runLoop();
 		J = calcCost();
 		fval = calcFval();
-	    }*/
+	    }
 	    Info<< "Outer Loop "<< iter << " Start: " << runTime.timeName() << " cost: "<< J << " fval: " << fval << " conserv: " << conserv << "\n" << endl;
 	
 	    for (int inneriter = 0; !conserv && inneriter < maxInnerLoop; ++inneriter) {
 		// Inner iteration update
-		//gcmma.InnerUpdate(eta_MMA, J, fval, eta, oldJ, sens, oldfval, dfdeta);
+		//gcmma.InnerUpdate(eta_MMA, J, fval, eta_old, oldJ, sens, oldfval, dfdeta);
 		//gcmma.OuterUpdate(eta_MMA, eta, J, sens, fval, dfdeta);
 		gcmma.MMAUpdate(eta_MMA, eta, J, sens, fval, dfdeta);
 		eta_MMA.write();
@@ -489,7 +514,7 @@ public:
 		fval = calcFval();
 		
 		conserv = gcmma.ConCheck(J, fval);
-/*		
+		
 		//Info<< "Updated Conservative: " << conserv << "\n" << endl;
 		if (!conserv) {
 			eta = eta_old;
@@ -497,26 +522,24 @@ public:
 			runLoop();
 			J = calcCost();
 			fval = calcFval();
-		}*/
-		Info<< "Outer Loop "<< iter << ": " <<"Inner Sub Loop "<< inneriter << ": " << runTime.timeName() << " cost: "<< J << " fval: " << fval << " conserv: " << conserv << "\n" << endl;
+		}
+		//Info<< "Outer Loop "<< iter << ": " <<"Inner Sub Loop "<< inneriter << ": " << runTime.timeName() << " cost: "<< J << " fval: " << fval << "\n" << endl;
 	    }
-
-	    senscheck = 0.0;
+*/
+	    check = 0.0;
 	    forAll(designSpaceCells,i){
 	    	const label j = designSpaceCells[i];
-		senscheck = max(senscheck,sens[j]);
+		check = max(check,mag(eta[j]-eta_old[j]));//max(senscheck,sens[j]);
 	    }
-	    Foam::reduce(senscheck,maxOp<scalar>());
+	    Foam::reduce(check,maxOp<scalar>());
 	    eta_old = eta;
-	    U_old = U;
 	    eta_old.write();
-	    U_old.write();
 	    oldJ = J;
 	    oldfval = fval;
 	    
-    	    Info<< "Outer Loop "<< iter << " End: " << runTime.timeName() << " cost: "<< J << " fval: " << fval << " conserv: " << conserv << " senscheck: " << senscheck << "\n" << endl;
+    	    Info<< "Outer Loop "<< iter << " End: " << runTime.timeName() << " cost: "<< J << " fval: " << fval  << " check: " << check << "\n" << endl;
     	}
-	fval = calcCost();
+	//fval = calcCost();
 	Info<< "GLobal Solver End\n" << endl;
     	return true;
     }
