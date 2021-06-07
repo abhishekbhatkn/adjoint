@@ -48,7 +48,7 @@ GCMMASolver::GCMMASolver(Foam::fvMesh &mesh, Foam::List<label> &designSpaceCells
 	, epsimin(1e-7)
 	, move(1.0)
 	, albefa(0.1)
-	, asyminit(0.5)
+	, asyminit(1.0)
 	, asymdec(0.7)
 	, asyminc(1.2)
 	, raa0(1.0)
@@ -428,12 +428,19 @@ void GCMMASolver::DualHess(Foam::volScalarField& x) {
 		hess[j] = 0;
 	}
 	//Info<< "hess: " << hess << endl;
-	forAll(designSpaceCells,jj) {
-		const Foam::label i = designSpaceCells[jj];
-		hess[0] += PQ1[i] * df2[i] * PQ1[i];
-		hess[1] += PQ1[i] * df2[i] * PQ2[i];
-		hess[3] += PQ2[i] * df2[i] * PQ1[i];
-		hess[4] += PQ2[i] * df2[i] * PQ2[i];
+	for (Foam::label j = 0; j < m*m; ++j) {
+		forAll(designSpaceCells,jj) {
+			const Foam::label i = designSpaceCells[jj];
+			if (j==0) {
+				hess[j] += PQ1[i] * df2[i] * PQ1[i];
+			}
+			if (j==1||j==2) {
+				hess[j] += PQ2[i] * df2[i] * PQ1[i];
+			}
+			if (j==3) {
+				hess[j] += PQ2[i] * df2[i] * PQ2[i];
+			}
+		}
 	}
 	for (Foam::label j = 0; j < m*m; ++j) {
 		Foam::reduce(hess[j],sumOp<scalar>());
@@ -625,8 +632,8 @@ void GCMMASolver::GenSub(const Foam::volScalarField& xval, Foam::scalar& f0x, co
 					r[j] += pi_0[i] * uxinv + qi_0[i] * xlinv;
 				}
 				if (j==1) {
-					pi_1[i] = Foam::pow(upp[i] - xval[i], 2.0) * (dfdxp + pq);
-					qi_1[i] = Foam::pow(xval[i] - low[i], 2.0) * (dfdxm + pq);
+					pi_1[i] = Foam::pow(upp[i] - xval[i], 2.0) * (dfdxm + pq);
+					qi_1[i] = Foam::pow(xval[i] - low[i], 2.0) * (dfdxp + pq);
 					r[j] += pi_1[i] * uxinv + qi_1[i] * xlinv;
 				}
 			}
