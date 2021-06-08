@@ -62,7 +62,13 @@
     {
 	Info << "Warning: Keyword maxoutit not found in fvSolution/SIMPLE. Default set to 8" << endl;
     }
-    	
+    
+    factorP = simpleDict.lookupOrDefault<label>("factorP",1);
+    if (!simpleDict.found("factorP"))
+    {
+	Info << "Warning: Keyword factorP not found in fvSolution/SIMPLE. Default set to 1" << endl;
+    }
+    
     designVolume = 0.0;
     designSize = designSpaceCells.size();
     forAll(designSpaceCells,i){

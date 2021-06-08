@@ -105,7 +105,7 @@ private:
     
     // member variables
     volScalarField eta_MMA, eta_old, dfdeta;
-    scalar penalty, volumeConstraint, designVolume, optEpsilon, porosity_s, porosity_f;
+    scalar penalty, volumeConstraint, designVolume, optEpsilon, porosity_s, porosity_f, factorP;
     label nOptSteps, maxoutit, maxPiggyLoop, designSize;
     List<label> designSpaceCells;
     List<label> solidSpaceCells;
@@ -240,7 +240,7 @@ public:
 	}
 	Foam::reduce(val,sumOp<scalar>());
 	value[0] = 100*((volumeConstraint)-(val/designVolume));
-	//value[1] = 0.0; //((val/designVolume)-(volumeConstraint));
+	//value[1] = 100*((val/designVolume)-(volumeConstraint));
 
 
 	Info << "fval1 = " << value[0] << " fval2 = " << value[1] << endl;
@@ -260,7 +260,7 @@ public:
 		    + 0.5*magSqr(phi.boundaryField()[patchI]/patch.magSf()))
 		);
 	}
-	J = 10000*J;
+	J = factorP*J;
 	Info<< "cost pressure: " << J << endl;
 	return 10000*J;
     }
