@@ -1,3 +1,0 @@
-GCMMASolver.C
-
-LIB = $(FOAM_USER_LIBBIN)/libGCMMASolver
