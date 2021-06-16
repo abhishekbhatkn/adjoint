@@ -105,6 +105,7 @@ private:
 	Foam::scalar& pRefValue;
 	Foam::volScalarField& p;
 	Foam::volScalarField& sens;
+	Foam::volScalarField& dfdeta;
 	Foam::volScalarField& eta;
 	Foam::volScalarField& eta_old1;
 	Foam::volScalarField& eta_old2;
@@ -122,7 +123,6 @@ private:
 	CheckDatabase checkDB;
     
     // member variables
-    Foam::volScalarField dfdeta;
     Foam::scalar penalty, volumeConstraint, designVolume, optEpsilon, porosity_s, porosity_f, factorT, factorP, refRho, Cp, minTempCost, maxTempCost, minPrCost, maxPrCost, asyminit, asymdec, asyminc;
     Foam::label nOptSteps, maxPiggyLoop, designSize, maxMMAiter, MMALoop;
     Foam::List<label> designSpaceCells;
@@ -158,6 +158,7 @@ public:
 	Foam::scalar& pRefValue,
 	Foam::volScalarField& p,
 	Foam::volScalarField& sens,
+	Foam::volScalarField& dfdeta,
 	Foam::volScalarField& eta,
 	Foam::volScalarField& eta_old1,
 	Foam::volScalarField& eta_old2,
@@ -193,6 +194,7 @@ public:
 	 pRefValue(pRefValue),
 	 p(p),
 	 sens(sens),
+	 dfdeta(dfdeta),
 	 eta(eta),
 	 eta_old1(eta_old1),
 	 eta_old2(eta_old2),
@@ -207,14 +209,17 @@ public:
 	 costFunctionPatches(mesh.solutionDict().subDict("SIMPLE").lookup("costFunctionPatches")),
 	 check(runTime),
 	 checkDict(runTime),
-	 checkDB(runTime, checkDict),
-	 dfdeta("dfdeta",eta)
+	 checkDB(runTime, checkDict)	 
 {
-	label tapeSizeMB = mesh.solutionDict().subDict("SIMPLE").lookupOrDefault<label>("tapeSizeMB",4096);
-	Info << "Creating Tape, size: " << tapeSizeMB << endl;
-	AD::createGlobalTape(tapeSizeMB/Pstream::nProcs());
+	#include "settings.H"
+	bool MMARun = mesh.solutionDict().subDict("SIMPLE").lookupOrDefault<bool>("MMARun",false);
+	if (!MMARun) {
+		label tapeSizeMB = mesh.solutionDict().subDict("SIMPLE").lookupOrDefault<label>("tapeSizeMB",4096);
+		Info << "Creating Tape, size: " << tapeSizeMB << endl;
+		AD::createGlobalTape(tapeSizeMB/Pstream::nProcs());
 
-        AD::switchTapeToPassive();
+		AD::switchTapeToPassive();
+	}
 }
 
     void runLoop() {
@@ -259,13 +264,6 @@ public:
 	Info << "ExecutionTime = " << runTime.elapsedCpuTime() << " s"
 	<< "  ClockTime = "   << runTime.elapsedClockTime() << " s"
 	<< nl << endl;
-    }
-    
-    void start() {
-        #include "settings.H"
-        //initialGuess();
-        runLoop();
-        Info << "Initialization Complete ! " << endl;
     }
     
     void initialGuess() {
@@ -330,7 +328,7 @@ public:
     
     scalar calcCost(){
         scalar J = 0;
-	J = factorT*(maxTempCost-calcTempCost())/(maxTempCost-minTempCost) + factorP*(calcPrCost()-(minPrCost))/((maxPrCost)-(minPrCost));
+	J = -factorT*(calcTempCost()-minTempCost)/(maxTempCost-minTempCost) + factorP*(calcPrCost()-minPrCost)/(maxPrCost-minPrCost);
 	return J;
     }
        
@@ -430,7 +428,6 @@ public:
     
     bool GlobalSolver() {
 
-	start();
     	Info<< "Starting Global Program\n" << endl;
     	
 	GCMMASolver gcmma (
@@ -467,21 +464,100 @@ public:
     	return true;
     }
     
-    bool etaCheck() {
+    bool GradientSolver() {
+
+    	Info<< "Starting Gradient Solver\n" << endl;
+    	scalar lam = 0.01, oldJ = 0.0, J = 0.0;
+    	
+	scalar check = 1.0;
+	while ( MMALoop < maxMMAiter && check > optEpsilon) {
+	   	checkpointerLoop();
+		J = calcCost();
+		List<scalar> fval = calcFval();
+		if (MMALoop == 0) {
+			Info<< " Start: " << runTime.timeName() << " cost: "<< J << " fval: " << fval << "\n" << endl; 
+			runTime.writeNow();  
+		}
+		eta_old1 = eta;
+		forAll(designSpaceCells,i){
+			const label j = designSpaceCells[i];
+			if (mag(sens[j]) > optEpsilon) {
+				eta[j] = eta[j] - sens[j]*lam;
+				eta[j] = max(0.0, eta[j]);
+				eta[j] = min(1.0, eta[j]);
+			}
+		}
+		runTime.writeNow();
+		check = etaCheck();
+		if (check > optEpsilon) {
+			oldJ = J;
+		    	runLoop();
+			J = calcCost();
+			fval = calcFval();
+			label loop = 0;
+			while (J > oldJ && check > optEpsilon) {
+				eta = eta_old1;
+				lam = lam/2;
+				forAll(designSpaceCells,i){
+					const label j = designSpaceCells[i];
+					if (mag(sens[j]) > optEpsilon) {
+						eta[j] = eta[j] - sens[j]*lam;
+						eta[j] = max(0.0, eta[j]);
+						eta[j] = min(1.0, eta[j]);
+					}
+				}
+				runTime.writeNow();
+				check = etaCheck();
+				if (check > optEpsilon) {
+					runLoop();
+					Info << "Outer Loop "<< MMALoop << " Inner Loop "<< loop << " Time: " << runTime.timeName() << " cost: "<< J << " fval: " << fval  << " check: " << check << " lam: " << lam << endl;
+					++loop;
+				}
+			}
+		}
+	    	Info<< "Outer Loop "<< MMALoop << " End: " << runTime.timeName() << " cost: "<< J << " fval: " << fval  << " check: " << check << " lam: " << lam << endl;
+	    	++MMALoop;
+	    	runTime.writeNow();
+    	}
+	Info<< "Gradient Solver End\n" << endl;
+    	return true;
+    }
+    
+        
+    bool MMASolver() {
+	Info<< "Starting Global Program\n" << endl;
+
+	GCMMASolver gcmma (
+		mesh
+		, designSpaceCells
+		, 1
+		, low
+		, upp
+		, asyminit
+		, asymdec
+		, asyminc
+		, MMALoop
+		);
+	scalar J = calcCost();
+	List<scalar> fval = calcFval();
+	gcmma.MMAUpdate(eta, eta_old1, eta_old2, J, sens, fval, dfdeta);
+	scalar check = etaCheck();
+	Info<< "Loop "<< MMALoop << " Time: " << runTime.timeName() << " cost: "<< J << " fval: " << fval  << " check: " << check << " asyminit: " << asyminit << " asymdec: " << asymdec << " asyminc: " << asyminc << endl;
+	runTime.writeNow();
+	if (check < optEpsilon) {
+		return false;
+	}
+	return true;
+    }
+    
+    scalar etaCheck() {
     	scalar check = 0.0;
 	forAll(designSpaceCells,i){
 	const label j = designSpaceCells[i];
 		check = max(check,mag(eta[j]-eta_old1[j]));
 	}
 	Foam::reduce(check,maxOp<scalar>());
-	
-	if (check < optEpsilon) {
-		return false;
-	}
-	else {
-		Info << "check: " << check << endl;
-		return true;
-	}
+	return check;
     }
 };
 
@@ -533,6 +609,7 @@ int main(int argc, char *argv[])
          pRefValue,
          p,
          sens,
+	 dfdeta,
          eta,
          eta_old1,
          eta_old2,
@@ -545,9 +622,20 @@ int main(int argc, char *argv[])
          fvOptions,
          cumulativeContErr
     );
+/*
+    bool MMARun = mesh.solutionDict().subDict("SIMPLE").lookupOrDefault<bool>("MMARun",false);
     
-    program.GlobalSolver();
-    
+    if (!MMARun) {
+    	program.runLoop();
+    	program.checkpointerLoop();
+    	runTime.writeNow();
+    }
+    else {
+    	program.MMASolver();
+    }
+    //program.GlobalSolver();
+    */
+    program.GradientSolver();
     Info<< "End\n" << endl;
     return 0;
 }
