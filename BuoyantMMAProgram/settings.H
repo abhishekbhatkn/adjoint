@@ -61,7 +61,7 @@
     optEpsilon = simpleDict.lookupOrDefault<scalar>("optTolerance",1e-3);
     if (!simpleDict.found("optTolerance"))
     {
-	Info << "Warning: Keyword optTolerance not found in fvSolution/SIMPLE. Default set to 5e-2" << endl;
+	Info << "Warning: Keyword optTolerance not found in fvSolution/SIMPLE. Default set to 1e-3" << endl;
     }
     
     volumeConstraint = simpleDict.lookupOrDefault<scalar>("volumeConstraint",0.4);
