@@ -211,15 +211,18 @@ void GCMMASolver::Asymp(const Foam::volScalarField& xval, const Foam::volScalarF
 			}
 			low[i] = xval[i] - gamma * (xval_old1[i] - low[i]);
 			upp[i] = xval[i] + gamma * (upp[i] - xval_old1[i]);
-
-			Foam::scalar xmami = Foam::max(xmamieps, Foam::scalar(1.0));
-			// double xmami = xmax[i] - xmin[i];
-			low[i] = Foam::max(low[i], xval[i] - 10.0 * xmami);
-			low[i] = Foam::min(low[i], xval[i] - 0.001 * xmami);
-			upp[i] = Foam::max(upp[i], xval[i] + 0.001 * xmami);
-			upp[i] = Foam::min(upp[i], xval[i] + 10.0 * xmami);
-
-/*			Foam::scalar xmi = 0.0 - 1.0e-6;
+		}
+	}
+	forAll(designSpaceCells,jj) {
+		const Foam::label i = designSpaceCells[jj];
+			low[i] = Foam::max(low[i], xval[i] - 10.0 );
+			low[i] = Foam::min(low[i], xval[i] - 0.001 );
+			upp[i] = Foam::max(upp[i], xval[i] + 0.001 );
+			upp[i] = Foam::min(upp[i], xval[i] + 10.0 );
+	}
+}
+/*
+			Foam::scalar xmi = 0.0 - 1.0e-6;
 			Foam::scalar xma = 1.0 + 1.0e-6;
 			if (xval[i] < xmi) {
 				low[i] = xval[i] - (xma - xval[i]) / Foam::scalar(0.9);
@@ -229,10 +232,9 @@ void GCMMASolver::Asymp(const Foam::volScalarField& xval, const Foam::volScalarF
 				low[i] = xval[i] - (xval[i] - xmi) / Foam::scalar(0.9);
 				upp[i] = xval[i] + (xval[i] - xmi) / Foam::scalar(0.9);
 			}
-*/		}
-	}
+			
 	// Set raa0, raa
-/*	raa0 = 0;
+	raa0 = 0;
 	for (Foam::label j = 0; j < m; ++j) {
 		raa[j] = 0;
 	}
@@ -257,7 +259,7 @@ void GCMMASolver::Asymp(const Foam::volScalarField& xval, const Foam::volScalarF
 	}
 	//Info << "raa0 value: " << raa0 <<" raa value: " << sum(raa) <<"\n" << endl;
 	*/
-}
+
 
 void GCMMASolver::SolveDIP(Foam::volScalarField& x) {
 	
@@ -274,7 +276,7 @@ void GCMMASolver::SolveDIP(Foam::volScalarField& x) {
 	while (epsi > tol) {
 
 		loop = 0;
-		while (err > 0.9 * epsi && loop < 1000) {
+		while (err > 0.9 * epsi && loop < 5000) {
 			loop++;
 
 			// Set up Newton system
@@ -599,13 +601,18 @@ void GCMMASolver::GenSub(const Foam::volScalarField& xval, Foam::scalar& f0x, co
 	forAll(designSpaceCells,jj) {
 		const Foam::label i = designSpaceCells[jj];
 		// Compute bounds alpha and beta
+		/*
 		alpha[i] = Foam::max(Foam::scalar(0.0), low[i] + albefa * (xval[i] - low[i]));
 		alpha[i] = Foam::max(alpha[i], xval[i] - move);
 		// alpha[i] = Foam::min(alpha[i], xmax[i]);
 		beta[i] = Foam::min(1.0, upp[i] - albefa * (upp[i] - xval[i]));
 		beta[i] = Foam::min(beta[i], xval[i] + move);
 		// beta[i]  = Foam::max(beta[i], xmin[i]);
-
+		*/
+		alpha[i] = Foam::max(low[i], 0.0);
+		beta[i] = Foam::min(upp[i], 1.0);
+		
+		
 		Foam::scalar uxinv = 1.0 / (upp[i] - xval[i]);
 		Foam::scalar xlinv = 1.0 / (xval[i] - low[i]);
 
