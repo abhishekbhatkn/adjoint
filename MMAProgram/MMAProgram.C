@@ -97,6 +97,7 @@ private:
     volScalarField& low;
     volScalarField& upp;
     volScalarField& sens;
+    volScalarField& dfdeta;
     surfaceScalarField& phi;
   
     label&  pRefCell;
@@ -106,9 +107,9 @@ private:
     CheckInterface check;
     CheckDict checkDict;
     CheckDatabase checkDB;
-    
+
     // member variables
-    volScalarField dfdeta;
+    
     scalar penalty, volumeConstraint, designVolume, optEpsilon, porosity_s, porosity_f, factorP, asyminit, asymdec, asyminc;
     label nOptSteps, maxPiggyLoop, designSize, maxMMAiter, MMALoop;
     List<label> designSpaceCells;
@@ -137,6 +138,7 @@ public:
         volScalarField& low,
         volScalarField& upp,
         volScalarField& sens,
+        volScalarField& dfdeta,
         surfaceScalarField& phi,
         label&  pRefCell,
         scalar& pRefValue,
@@ -158,6 +160,7 @@ public:
         low(low),
         upp(upp),
         sens(sens),
+        dfdeta(dfdeta),
         phi(phi),
         pRefCell(pRefCell),
         pRefValue(pRefValue),
@@ -166,16 +169,19 @@ public:
 
         check(runTime),
     	checkDict(runTime),
-    	checkDB(runTime, checkDict),
-    	dfdeta("dfdeta",eta)
-{
-	label tapeSizeMB = mesh.solutionDict().subDict("SIMPLE").lookupOrDefault<label>("tapeSizeMB",4096);
-	Info << "Creating Tape, size: " << tapeSizeMB << endl;
-	AD::createGlobalTape(tapeSizeMB/Pstream::nProcs());
+    	checkDB(runTime, checkDict)
+    	
+{	
+	#include "settings.H"
+	bool MMARun = mesh.solutionDict().subDict("SIMPLE").lookupOrDefault<bool>("MMARun",false);
+	if (!MMARun) {
+		label tapeSizeMB = mesh.solutionDict().subDict("SIMPLE").lookupOrDefault<label>("tapeSizeMB",4096);
+		Info << "Creating Tape, size: " << tapeSizeMB << endl;
+		AD::createGlobalTape(tapeSizeMB/Pstream::nProcs());
 
-        AD::switchTapeToPassive();
+		AD::switchTapeToPassive();
+	}
 }
-
     void runLoop() {
 	Info<< "\nStarting time loop\n" << endl;
 	label iter = 0;
@@ -218,13 +224,6 @@ public:
 	<< nl << endl;
     }
     
-    void start() {
-        #include "settings.H"
-        runLoop();
-        Info << "Initialization Complete ! " << endl;
-
-    }
-    
     void initialGuess() {
 	    forAll(designSpaceCells,i){
 		    const label j = designSpaceCells[i];
@@ -246,8 +245,6 @@ public:
 	Foam::reduce(val,sumOp<scalar>());
 	value[0] = 100*((volumeConstraint)-(val/designVolume));
 	//value[1] = 100*((val/designVolume)-(volumeConstraint));
-
-
 	Info << "fval = " << value << endl;
 	return value;
     }
@@ -331,13 +328,13 @@ public:
 		    }
 
 	      	    AD::interpretTape(); //_to(interpret_to);
+	      	    checkDB.storeAdjoints();
 	      	    scalar norm2 = checkDB.calcNormOfStoredAdjoints();
-		    checkDB.storeAdjoints();
 		    scalar sensSum  = 0.0;
 
 		    forAll(designSpaceCells,i){
 			const label j = designSpaceCells[i];
-			sens[j] = AD::derivative(eta[j]) * designSize*mesh.V()[j]/designVolume;
+			sens[j] = AD::derivative(eta[j]) * designVolume / (designSize*mesh.V()[j] );
 			sensSum += mag(sens[j]);
 		    }
 		    
@@ -366,7 +363,7 @@ public:
     
     bool GlobalSolver() {
 
-	start();
+	//start();
     	Info<< "Starting Global Program\n" << endl;
     	
 	GCMMASolver gcmma (
@@ -401,6 +398,30 @@ public:
     	}
 	Info<< "GLobal Solver End\n" << endl;
     	return true;
+    }
+    
+    bool MMASolver() {
+	//start();
+	Info<< "Starting Global Program\n" << endl;
+
+	GCMMASolver gcmma (
+		mesh
+		, designSpaceCells
+		, 1
+		, low
+		, upp
+		, asyminit
+		, asymdec
+		, asyminc
+		, MMALoop
+		);
+	scalar J = calcCost();
+	List<scalar> fval = calcFval();
+	gcmma.MMAUpdate(eta, eta_old1, eta_old2, J, sens, fval, dfdeta);
+	scalar check = etaCheck();
+	Info<< "Loop "<< MMALoop << " Time: " << runTime.timeName() << " cost: "<< J << " fval: " << fval  << " check: " << check << " asyminit: " << asyminit << " asymdec: " << asymdec << " asyminc: " << asyminc << endl;
+	runTime.writeNow();
+	return true;
     }
     
     scalar etaCheck() {
@@ -454,14 +475,23 @@ int main(int argc, char *argv[])
          low,
          upp,
          sens,
+         dfdeta,
          phi,
          pRefCell,
          pRefValue,
          cumulativeContErr
     );
-     
-    program.GlobalSolver();
-
+    bool MMARun = mesh.solutionDict().subDict("SIMPLE").lookupOrDefault<bool>("MMARun",false);
+    
+    if (!MMARun) {
+    	program.runLoop();
+    	program.checkpointerLoop();
+    	runTime.writeNow();
+    }
+    else {
+    	program.MMASolver();
+    }
+    //program.GlobalSolver();
     Info<< "End\n" << endl;
     return 0;
 }
