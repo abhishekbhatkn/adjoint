@@ -134,6 +134,22 @@ volScalarField sens
     zeroGradientFvPatchScalarField::typeName
 );
 
+volScalarField dfdeta
+(
+    IOobject
+    (
+        "dfdeta",
+        runTime.timeName(),
+        mesh,
+        IOobject::READ_IF_PRESENT,
+        IOobject::AUTO_WRITE
+    ),
+    mesh,
+    dimensionedScalar("0", dimless, 0.0),
+    zeroGradientFvPatchScalarField::typeName
+);
+
+
 volScalarField eta
 (
     IOobject
