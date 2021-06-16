@@ -400,7 +400,7 @@ public:
 
 		    forAll(designSpaceCells,i){
 			const label j = designSpaceCells[i];
-			sens[j] = AD::derivative(eta[j]) * designSize*mesh.V()[j]/designVolume;
+			sens[j] = AD::derivative(eta[j]) * designVolume / (designSize*mesh.V()[j]);
 			sensSum += mag(sens[j]);
 		    }
 		    
