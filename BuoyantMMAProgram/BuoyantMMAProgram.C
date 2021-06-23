@@ -398,10 +398,9 @@ public:
 		    scalar norm2 = checkDB.calcNormOfStoredAdjoints();
 		    scalar sensSum  = 0.0;
 
-		    forAll(designSpaceCells,i){
-			const label j = designSpaceCells[i];
-			sens[j] = AD::derivative(eta[j]) * designVolume / (designSize*mesh.V()[j]);
-			sensSum += mag(sens[j]);
+		    for(label i = 0; i < eta.size(); i++) {
+			sens[j] = AD::derivative(eta[i]) * designVolume / (designSize*mesh.V()[i]);
+			sensSum += mag(sens[i]);
 		    }
 		    
 		    Foam::reduce(sensSum,sumOp<scalar>());
@@ -426,49 +425,11 @@ public:
 	    Info<< "End of checkpointerLoop\n" << endl;
     }
     
-    bool GlobalSolver() {
-
-    	Info<< "Starting Global Program\n" << endl;
-    	
-	GCMMASolver gcmma (
-		mesh
-		, designSpaceCells
-		, 1
-		, low
-		, upp
-		, asyminit
-		, asymdec
-		, asyminc
-		, MMALoop
-		);
-	
-	scalar check = 1.0;
-	while ( MMALoop < maxMMAiter && check > optEpsilon) {
-	   	checkpointerLoop();
-		scalar J = calcCost();
-		List<scalar> fval = calcFval();
-		if (MMALoop == 0) {
-			Info<< " Start: " << runTime.timeName() << " cost: "<< J << " fval: " << fval << "\n" << endl; 
-			runTime.writeNow();  
-		}
-		gcmma.MMAUpdate(eta, eta_old1, eta_old2, J, sens, fval, dfdeta);
-	    	runLoop();
-		J = calcCost();
-		fval = calcFval();
-		check = etaCheck();
-	    	Info<< "Loop "<< MMALoop << " End: " << runTime.timeName() << " cost: "<< J << " fval: " << fval  << " check: " << check << " asyminit: " << asyminit << " asymdec: " << asymdec << " asyminc: " << asyminc << endl;
-	    	++MMALoop;
-	    	runTime.writeNow();
-    	}
-	Info<< "GLobal Solver End\n" << endl;
-    	return true;
-    }
-    
     bool GradientSolver() {
 
     	Info<< "Starting Gradient Solver\n" << endl;
-    	scalar lam = 0.01, oldJ = 0.0, J = 0.0;
-    	
+    	scalar lam = 1, oldJ = 0.0, J = 0.0;
+    	runLoop();
 	scalar check = 1.0;
 	while ( MMALoop < maxMMAiter && check > optEpsilon) {
 	   	checkpointerLoop();
@@ -523,6 +484,108 @@ public:
     	return true;
     }
     
+    bool GlobalSolver() {
+
+    	Info<< "Starting Global Program\n" << endl;
+    	
+	GCMMASolver gcmma (
+		mesh
+		, designSpaceCells
+		, 1
+		, low
+		, upp
+		, asyminit
+		, asymdec
+		, asyminc
+		, MMALoop
+		);
+	
+	scalar check = 1.0;
+	while ( MMALoop < maxMMAiter && check > optEpsilon) {
+	   	checkpointerLoop();
+		scalar J = calcCost();
+		List<scalar> fval = calcFval();
+		if (MMALoop == 0) {
+			Info<< " Start: " << runTime.timeName() << " cost: "<< J << " fval: " << fval << "\n" << endl; 
+			runTime.writeNow();  
+		}
+		gcmma.MMAUpdate(eta, eta_old1, eta_old2, J, sens, fval, dfdeta);
+	    	runLoop();
+		J = calcCost();
+		fval = calcFval();
+		check = etaCheck();
+	    	Info<< "Loop "<< MMALoop << " End: " << runTime.timeName() << " cost: "<< J << " fval: " << fval  << " check: " << check << " asyminit: " << asyminit << " asymdec: " << asymdec << " asyminc: " << asyminc << endl;
+	    	++MMALoop;
+	    	runTime.writeNow();
+    	}
+	Info<< "GLobal Solver End\n" << endl;
+    	return true;
+    }
+/*    
+    bool GradientSolver() {
+
+    	Info<< "Starting Gradient Solver\n" << endl;
+    	scalar lam = 1, oldJ = 0.0, J = 0.0;
+    	runLoop();
+	scalar check = 1.0;
+	while ( MMALoop < maxMMAiter) {
+	   	checkpointerLoop();
+		J = calcCost();
+		List<scalar> fval = calcFval();
+		if (MMALoop == 0) {
+			Info<< " Start: " << runTime.timeName() << " cost: "<< J << " fval: " << fval << "\n" << endl; 
+			runTime.writeNow();  
+		}
+		eta_old1 = eta;
+		forAll(designSpaceCells,i){
+			const label j = designSpaceCells[i];
+			if (mag(sens[j]) > optEpsilon) {
+				eta[j] = eta[j] - sens[j]*lam;
+				eta[j] = max(0.0, eta[j]);
+				eta[j] = min(1.0, eta[j]);
+			}
+		}
+		runTime.writeNow();
+		check = etaCheck();
+		if (check > optEpsilon) {
+			oldJ = J;
+		    	runLoop();
+			J = calcCost();
+			fval = calcFval();
+			label loop = 0;
+			while (J > oldJ && check > optEpsilon) {
+				eta = eta_old1;
+				factorP = factorP/2;
+				checkpointerLoop();
+				J = calcCost();
+				oldJ = J;
+				forAll(designSpaceCells,i){
+					const label j = designSpaceCells[i];
+					if (mag(sens[j]) > optEpsilon) {
+						eta[j] = eta[j] - sens[j]*lam;
+						eta[j] = max(0.0, eta[j]);
+						eta[j] = min(1.0, eta[j]);
+					}
+				}
+				runTime.writeNow();
+				check = etaCheck();
+				if (check > optEpsilon) {
+					runLoop();
+					J = calcCost();
+					fval = calcFval();
+					Info << "Outer Loop "<< MMALoop << " Inner Loop "<< loop << " Time: " << runTime.timeName() << " cost: "<< J << " fval: " << fval  << " check: " << check << " factorP: " << factorP << endl;
+					++loop;
+				}
+			}
+		}
+	    	Info<< "Outer Loop "<< MMALoop << " End: " << runTime.timeName() << " cost: "<< J << " fval: " << fval  << " check: " << check << " lam: " << lam << endl;
+	    	++MMALoop;
+	    	runTime.writeNow();
+    	}
+	Info<< "Gradient Solver End\n" << endl;
+    	return true;
+    }
+ */   
         
     bool MMASolver() {
 	Info<< "Starting Global Program\n" << endl;
@@ -553,11 +616,20 @@ public:
     scalar etaCheck() {
     	scalar check = 0.0;
 	forAll(designSpaceCells,i){
-	const label j = designSpaceCells[i];
+		const label j = designSpaceCells[i];
 		check = max(check,mag(eta[j]-eta_old1[j]));
 	}
 	Foam::reduce(check,maxOp<scalar>());
 	return check;
+    }
+    
+    void setTemp() {
+    	forAll(designSpaceCells,i){
+		const label j = designSpaceCells[i];
+		if (eta[j] < 0.1) {
+			T[j] = 350;
+		}
+	}
     }
 };
 
@@ -622,10 +694,11 @@ int main(int argc, char *argv[])
          fvOptions,
          cumulativeContErr
     );
-/*
+
     bool MMARun = mesh.solutionDict().subDict("SIMPLE").lookupOrDefault<bool>("MMARun",false);
     
     if (!MMARun) {
+    	program.setTemp();
     	program.runLoop();
     	program.checkpointerLoop();
     	runTime.writeNow();
@@ -634,8 +707,7 @@ int main(int argc, char *argv[])
     	program.MMASolver();
     }
     //program.GlobalSolver();
-    */
-    program.GradientSolver();
+    //program.GradientSolver();
     Info<< "End\n" << endl;
     return 0;
 }

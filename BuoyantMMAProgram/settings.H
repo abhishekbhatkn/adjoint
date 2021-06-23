@@ -34,10 +34,10 @@
 	Info << "Warning: Keyword nOptSteps not found in fvSolution/SIMPLE. Default set to 100" << endl;
     }
 
-    penalty = simpleDict.lookupOrDefault<scalar>("penalty",0.6);
+    penalty = simpleDict.lookupOrDefault<scalar>("penalty",10);
     if (!simpleDict.found("penalty"))
     {
-	Info << "Warning: Keyword penalty not found in fvSolution/SIMPLE. Default set to 0.6" << endl;
+	Info << "Warning: Keyword penalty not found in fvSolution/SIMPLE. Default set to 10" << endl;
     }
 	    
     porosity_f = simpleDict.lookupOrDefault<scalar>("porosity_f",0.0);
