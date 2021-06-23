@@ -601,16 +601,13 @@ void GCMMASolver::GenSub(const Foam::volScalarField& xval, Foam::scalar& f0x, co
 	forAll(designSpaceCells,jj) {
 		const Foam::label i = designSpaceCells[jj];
 		// Compute bounds alpha and beta
-		/*
+		
 		alpha[i] = Foam::max(Foam::scalar(0.0), low[i] + albefa * (xval[i] - low[i]));
 		alpha[i] = Foam::max(alpha[i], xval[i] - move);
 		// alpha[i] = Foam::min(alpha[i], xmax[i]);
 		beta[i] = Foam::min(1.0, upp[i] - albefa * (upp[i] - xval[i]));
 		beta[i] = Foam::min(beta[i], xval[i] + move);
 		// beta[i]  = Foam::max(beta[i], xmin[i]);
-		*/
-		alpha[i] = Foam::max(low[i], 0.0);
-		beta[i] = Foam::min(upp[i], 1.0);
 		
 		
 		Foam::scalar uxinv = 1.0 / (upp[i] - xval[i]);
