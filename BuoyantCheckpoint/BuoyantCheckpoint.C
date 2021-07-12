@@ -266,7 +266,7 @@ public:
 		}
 		Foam::reduce(maxdiff,maxOp<scalar>());
 		Info << "MaxDiff: " << maxdiff << endl;
-		if (maxdiff < optEpsilon && iter > 100) {
+		if ((maxdiff < optEpsilon && iter > 100 ) || iter >= maxPiggyLoop) {
 			runTime.writeNow();
 			forwardLoop = false;
 			return true;
@@ -318,7 +318,7 @@ public:
     void postInterpret(){
         //Info << "Writing sensitivity for timestep " << runTime.timeName() << endl;
         for(int i = 0; i < eta.size(); i++)
-            sens[i] = AD::derivative(eta[i]) / mesh.V()[i];
+            sens[i] = AD::derivative(eta[i]); // mesh.V()[i];
         Info << "sens Sum: " << runTime.timeName() << "\t" << gSum(sens) << endl;
 
         //runTime.stopAt(Foam::Time::stopAtControls::saEndTime);
@@ -331,15 +331,14 @@ public:
     void write(bool firstRun){
         if(firstRun)
             runTime.write();
-            //runTime.writeNow()
         else{
             if(runTime.writeTime() || runTime.stopAt() == Foam::Time::stopAtControls::saWriteNow){
                 Info << "Writing sensitivity for timestep " << runTime.timeName() << endl;
                 for(int i = 0; i < eta.size(); i++){
-                    sens[i] = AD::derivative(eta[i]) / mesh.V()[i];
+                    sens[i] = AD::derivative(eta[i]); // mesh.V()[i];
                 }
                 sens.write();
-                //runTime.writeNow();
+                runTime.writeNow();
             }
             
             //Info << "sens Sum: " << runTime.timeName() << "\t" << gSum(sens) << endl;
@@ -383,12 +382,12 @@ public:
 		}
 		Foam::reduce(maxdiff,maxOp<scalar>());
 		Info << "MaxDiff: " << maxdiff << endl;
-		if (maxdiff < 10*optEpsilon && iter > 100) {
+		if (maxdiff < 5*optEpsilon && iter > 100) {
 			check = false;
 		}
 		runTime.printExecutionTime(Info);
 	}
-	runTime.writeNow();
+	//runTime.writeNow();
 	Info << "ExecutionTime = " << runTime.elapsedCpuTime() << " s"
 	<< "  ClockTime = "   << runTime.elapsedClockTime() << " s"
 	<< nl << endl;
@@ -454,15 +453,13 @@ int main(int argc, char *argv[])
          cumulativeContErr
     );
 
-    if( readLabel(mesh.solutionDict().subDict("SIMPLE").lookup("MMALoop"))== 0) {
-    	simpleCheck.runLoop();
-    }
+    simpleCheck.runLoop();
 
     dimensionedScalar startTime = runTime.value();
     label maxPiggyLoop = mesh.solutionDict().subDict("SIMPLE").lookupOrDefault<label>("maxPiggyLoop",5000);
     runTime.setEndTime(startTime+maxPiggyLoop);
     simpleCheck.run();
-
+    runTime.writeNow();
 
     Info<< "ExecutionTime = " << runTime.elapsedCpuTime() << " s"
         << "  ClockTime = " << runTime.elapsedClockTime() << " s"
@@ -477,5 +474,4 @@ int main(int argc, char *argv[])
 
 
 // ************************************************************************* //
-
 
