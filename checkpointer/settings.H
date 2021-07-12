@@ -62,6 +62,18 @@
     {
 	Info << "Warning: Keyword factorP not found in fvSolution/SIMPLE. Default set to 1" << endl;
     }
+
+    minPrCost = simpleDict.lookupOrDefault<scalar>("minPrCost",0.0);
+    if (!simpleDict.found("minPrCost"))
+    {
+	Info << "Warning: Keyword minPrCost not found in fvSolution/SIMPLE. Default set to 0.0" << endl;
+    }
+    
+    maxPrCost = simpleDict.lookupOrDefault<scalar>("maxPrCost",1.0);
+    if (!simpleDict.found("maxPrCost"))
+    {
+	Info << "Warning: Keyword maxPrCost not found in fvSolution/SIMPLE. Default set to 1.0" << endl;
+    }
     
     MMALoop = simpleDict.lookupOrDefault<label>("MMALoop",0);
     if (!simpleDict.found("MMALoop"))

@@ -61,8 +61,6 @@ Description
 
 \*---------------------------------------------------------------------------*/
 
-#include "profiling.H"
-
 #include "fvCFD.H"
 #include "singlePhaseTransportModel.H"
 #include "turbulentTransportModel.H"
@@ -102,7 +100,7 @@ private:
 
     // member variables
     bool frozenTurbulence, forwardLoop;
-    scalar penalty, volumeConstraint, designVolume, optEpsilon, porosity_s, porosity_f, factorP, asyminit, asymdec, asyminc;
+    scalar penalty, volumeConstraint, designVolume, optEpsilon, porosity_s, porosity_f, factorP, minPrCost, maxPrCost, asyminit, asymdec, asyminc;
     label nOptSteps, maxPiggyLoop, designSize, maxMMAiter, MMALoop, iter;
     List<label> designSpaceCells;
     List<label> solidSpaceCells;
@@ -190,7 +188,7 @@ public:
         Foam::volScalarField pold("pold",p);
         Foam::volVectorField Uold("Uold",U);
         {
-            #include "porosity.H"
+	    #include "porosity.H"
             #include "UEqn.H"
             #include "pEqn.H"
         }
@@ -222,7 +220,7 @@ public:
 		}
 		Foam::reduce(maxdiff,maxOp<scalar>());
 		Info << "MaxDiff: " << maxdiff << endl;
-		if (maxdiff < optEpsilon && iter > 100) {
+		if ((maxdiff < optEpsilon && iter > 100) || iter >= maxPiggyLoop) {
 			runTime.writeNow();
 			forwardLoop = false;
 			return true;
@@ -233,28 +231,32 @@ public:
     }
 
     
-    scalar calcCost(){
+    scalar calcPrCost(){
         Info << "ACTION::calcPrCost" << endl;
-	scalar J = 0;
+	scalar Jp = 0;
 	forAll(costFunctionPatches,cI)
 	{
 	Foam::label patchI = mesh.boundaryMesh().findPatchID(costFunctionPatches[cI] );
 	const Foam::fvPatch& patch = mesh.boundary()[patchI];
-	J += gSum
+	Jp += gSum
 		(
 		    - phi.boundaryField()[patchI]*(p.boundaryField()[patchI]
 		    + 0.5*magSqr(phi.boundaryField()[patchI]/patch.magSf()))
 		);
 	}
-	J = factorP*J;
-	Info<< "cost pressure: " << J << endl;
+	Info<< "cost pressure: " << Jp << endl;
+	return Jp;
+    }
+    scalar calcCost(){
+    	scalar J = 0;
+	J = factorP*(calcPrCost()-minPrCost)/(maxPrCost-minPrCost);
 	return J;
     }
     
     void postInterpret(){
         //Info << "Writing sensitivity for timestep " << runTime.timeName() << endl;
         for(int i = 0; i < eta.size(); i++)
-            sens[i] = AD::derivative(eta[i]) / mesh.V()[i];
+            sens[i] = AD::derivative(eta[i]); //designVolume/(designSize* mesh.V()[i]);
         Info << "sens Sum: " << runTime.timeName() << "\t" << gSum(sens) << endl;
 
         //runTime.stopAt(Foam::Time::stopAtControls::saEndTime);
@@ -271,10 +273,10 @@ public:
             if(runTime.writeTime() || runTime.stopAt() == Foam::Time::stopAtControls::saWriteNow){
                 Info << "Writing sensitivity for timestep " << runTime.timeName() << endl;
                 for(int i = 0; i < eta.size(); i++){
-                    sens[i] = AD::derivative(eta[i]) / mesh.V()[i];
+                    sens[i] = AD::derivative(eta[i]); //designVolume/(designSize* mesh.V()[i]);
                 }
                 sens.write();
-                //runTime.writeNow();
+                runTime.writeNow();
             }
             //Info << "sens Sum: " << runTime.timeName() << "\t" << gSum(sens) << endl;
         }
@@ -286,18 +288,18 @@ public:
     
     void runLoop() {
 	    Info<< "\nStarting time loop\n" << endl;
-	    label iter = 0;
+	    label itera = 0;
 	    bool check = true;
-	    while (iter < nOptSteps && check && simple.loop())
+	    while (itera < nOptSteps && check && simple.loop())
 	    {
-	    	iter++;
+	    	itera++;
 		Info<< "Time = " << runTime.timeName() << nl << endl;
 		
 		Foam::volScalarField pold("pold",p);
 		Foam::volVectorField Uold("Uold",U);
 		// --- Pressure-velocity SIMPLE corrector
 		{
-		    #include "porosity.H"
+	            #include "porosity.H"
 		    #include "UEqn.H"
 		    #include "pEqn.H"
 		}
@@ -315,12 +317,12 @@ public:
 		}
 		Foam::reduce(maxdiff,maxOp<scalar>());
 		Info << "MaxDiff: " << maxdiff << endl;
-		if (maxdiff < optEpsilon && iter > 100) {
+		if (maxdiff < 5*optEpsilon && itera > 100) {
 			check = false;
 		}
 		runTime.printExecutionTime(Info);
 	    }
-	    runTime.writeNow();
+	    //runTime.writeNow();
 	    Info << "ExecutionTime = " << runTime.elapsedCpuTime() << " s"
 	    << "  ClockTime = "   << runTime.elapsedClockTime() << " s"
 	    << nl << endl;
@@ -365,17 +367,13 @@ int main(int argc, char *argv[])
          cumulativeContErr
     );
     
-    if( readLabel(mesh.solutionDict().subDict("SIMPLE").lookup("MMALoop"))== 0) {
-    	simpleCheck.runLoop();
-    }
-
+    simpleCheck.runLoop();
+    
     dimensionedScalar startTime = runTime.value();
-    label maxPiggyLoop = mesh.solutionDict().subDict("SIMPLE").lookupOrDefault<label>("maxPiggyLoop",100);
+    label maxPiggyLoop = mesh.solutionDict().subDict("SIMPLE").lookupOrDefault<label>("maxPiggyLoop",5000);
     runTime.setEndTime(startTime+maxPiggyLoop);
     simpleCheck.run();
-
-    runTime.setTime(startTime,0);
-    sens.write();
+    runTime.writeNow();
 
     Info<< "ExecutionTime = " << runTime.elapsedCpuTime() << " s"
         << "  ClockTime = " << runTime.elapsedClockTime() << " s"
