@@ -123,4 +123,3 @@ private:
 	void Factorize(Foam::List<scalar>& K);
 	void Solve(Foam::List<scalar>& K, Foam::List<scalar>& x);
 };
-

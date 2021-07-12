@@ -56,7 +56,7 @@ GCMMASolver::GCMMASolver(
 	, raaeps(1e-6)
 	, xmamieps(1e-5)
 	, epsimin(1e-7)
-	, move(0.5)
+	, move(1.0)
 	, albefa(0.1)
 	, asyminit(asyminit)
 	, asymdec(asymdec)
